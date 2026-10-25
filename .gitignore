@@ -1,0 +1,40 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+local.properties
+keystore.properties
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.key
+
+# Android/Gradle build output; retain the Gradle wrapper JAR
+.gradle/
+.kotlin/
+.cxx/
+build/
+captures/
+*.apk
+*.aab
+*.aar
+
+# Local SDK state and artifacts
+/data/
+/artifacts/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+go.work.sum
+
+# Editor and OS files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
