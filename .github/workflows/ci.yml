@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  suites:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    env:
+      GRADLE_OPTS: -Dorg.gradle.caching=true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: go
+            name: Go and schema checks
+          - suite: android
+            name: Android and HTTP/HTTPS integration
+          - suite: packages
+            name: Package consumers and release checks
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-build
+        with:
+          android: ${{ matrix.suite != 'go' }}
+      - name: Reproducible generation
+        if: matrix.suite == 'go'
+        run: scripts/check-generation.sh
+      - name: Go, schemas, documentation contracts and package boundaries
+        if: matrix.suite == 'go'
+        run: |
+          make schema docs-audit test-go build-go
+          python3 scripts/check-repository.py
+      - name: Android builds, both transport fixtures, host updates and console
+        if: matrix.suite == 'android'
+        run: make build-android interop test-host-update test-console
+      - name: Independent package consumers and publication failure gates
+        if: matrix.suite == 'packages'
+        run: make test-consumers test-release
+
+  verify:
+    name: SDK tests
+    if: always()
+    needs: suites
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Require every suite to succeed
+        env:
+          SUITES_RESULT: ${{ needs.suites.result }}
+        run: |
+          test "$SUITES_RESULT" = success

@@ -1,0 +1,12 @@
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="database" path="kylok-agent.db" />
+        <exclude domain="database" path="kylok-agent.db-wal" />
+        <exclude domain="database" path="kylok-agent.db-shm" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="database" path="kylok-agent.db" />
+        <exclude domain="database" path="kylok-agent.db-wal" />
+        <exclude domain="database" path="kylok-agent.db-shm" />
+    </device-transfer>
+</data-extraction-rules>

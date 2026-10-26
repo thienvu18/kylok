@@ -1,0 +1,243 @@
+// SPDX-License-Identifier: LGPL-3.0-only
+syntax = "proto3";
+
+package kylok.v1;
+
+option go_package = "github.com/thienvu18/kylok/go/gen/kylok/v1;kylokv1";
+option java_multiple_files = true;
+option java_package = "io.github.thienvu18.kylok.proto.v1";
+
+// Enrollment is the only unauthenticated agent RPC. Transport follows the host origin.
+service AgentService {
+  rpc Enroll(EnrollRequest) returns (EnrollResponse);
+  // Atomic inventory/report exchange and durable desired-state delivery.
+  rpc Sync(SyncRequest) returns (SyncResponse);
+}
+
+enum DeviceState {
+  DEVICE_STATE_UNSPECIFIED = 0;
+  DEVICE_STATE_ENROLLED = 1;
+  DEVICE_STATE_MANAGED = 2;
+  DEVICE_STATE_REVOKED = 3;
+}
+
+message Inventory {
+  uint32 api_level = 1;
+  string model = 2;
+  string build_fingerprint = 3;
+  string agent_version = 4;
+  bool device_owner = 5;
+  repeated string capabilities = 6;
+  repeated InstalledApplication applications = 7;
+  repeated string supported_abis = 8;
+}
+
+message InstalledApplication {
+  string package_name = 1;
+  int64 version_code = 2;
+  repeated string signing_certificates = 3;
+}
+
+message Device {
+  string id = 1;
+  string scope_id = 2;
+  DeviceState state = 3;
+  Inventory inventory = 4;
+  int64 created_at_unix_millis = 5;
+  int64 last_seen_at_unix_millis = 6;
+  uint64 desired_revision = 7;
+  uint64 reported_revision = 8;
+}
+
+message EnrollRequest {
+  string token = 1;
+  // Persist before sending. Retry must reuse this ID and the original private key.
+  string attempt_id = 2;
+  // X.509 SubjectPublicKeyInfo DER, P-256 ECDH key. No other curve is accepted.
+  bytes public_key = 3;
+  Inventory inventory = 4;
+  uint32 protocol_version = 5;
+}
+
+// Only the private key holder can recover the credential, including after response loss.
+message CredentialEnvelope {
+  bytes ephemeral_public_key = 1;
+  bytes nonce = 2;
+  bytes ciphertext = 3;
+}
+
+message EnrollResponse {
+  Device device = 1;
+  CredentialEnvelope credential = 2;
+  uint32 protocol_version = 3;
+}
+
+message SyncRequest {
+  string device_id = 1;
+  Inventory inventory = 2;
+  uint32 protocol_version = 3;
+  // Persist the complete request before sending; reuse unchanged after response loss.
+  uint64 sequence = 4;
+  uint64 reported_revision = 5;
+  repeated OperationReport reports = 6;
+  PolicyReport policy_report = 7;
+}
+
+message SyncResponse {
+  Device device = 1;
+  uint32 protocol_version = 2;
+  uint64 sequence = 3;
+  repeated DesiredApplication desired_applications = 4;
+  repeated Operation operations = 5;
+  repeated ReportReceipt receipts = 6;
+  repeated ApplicationCompliance compliance = 7;
+  DesiredPolicy desired_policy = 8;
+  repeated PolicyResult policy_compliance = 9;
+}
+
+// Full replacement. Omitted settings release previously managed settings to
+// their captured baseline; an empty document releases all Kylok policy controls.
+message Policy {
+  repeated string required_packages = 1;
+  LockTaskPolicy lock_task = 2;
+  optional bool camera_disabled = 3;
+  optional bool screen_capture_disabled = 4;
+  repeated RestrictionRule restrictions = 5;
+  repeated PermissionRule permissions = 6;
+  optional int64 maximum_time_to_lock_millis = 7;
+}
+
+message LockTaskPolicy {
+  repeated string packages = 1;
+  // Must be required and allowlisted. Empty means allowlist configuration only.
+  string kiosk_package = 2;
+}
+
+message RestrictionRule {
+  string name = 1;
+  bool enabled = 2;
+}
+
+enum PermissionState {
+  PERMISSION_STATE_UNSPECIFIED = 0;
+  PERMISSION_STATE_DEFAULT = 1;
+  PERMISSION_STATE_GRANTED = 2;
+  PERMISSION_STATE_DENIED = 3;
+}
+
+message PermissionRule {
+  string package_name = 1;
+  string permission = 2;
+  PermissionState state = 3;
+}
+
+message DesiredPolicy {
+  uint64 revision = 1;
+  Policy policy = 2;
+}
+
+message PolicyReport {
+  uint64 revision = 1;
+  // Binds observations to the complete desired-app/policy snapshot.
+  uint64 snapshot_revision = 2;
+  repeated PolicyResult results = 3;
+}
+
+message PolicyResult {
+  string rule_id = 1;
+  ComplianceState state = 2;
+  string reason = 3;
+  // Canonical observed value, never the setter's return value.
+  string observed_value = 4;
+}
+
+message Artifact {
+  string sha256 = 1;
+  string package_name = 2;
+  int64 version_code = 3;
+  uint32 min_sdk = 4;
+  uint32 max_sdk = 5;
+  repeated string signing_certificates = 6;
+  repeated string supported_abis = 7;
+  int64 size_bytes = 8;
+}
+
+message DesiredApplication {
+  Artifact artifact = 1;
+  uint64 revision = 2;
+}
+
+enum OperationState {
+  OPERATION_STATE_UNSPECIFIED = 0;
+  OPERATION_STATE_QUEUED = 1;
+  OPERATION_STATE_RUNNING = 2;
+  OPERATION_STATE_WAITING_USER = 3;
+  OPERATION_STATE_SUCCEEDED = 4;
+  OPERATION_STATE_FAILED = 5;
+  OPERATION_STATE_SUPERSEDED = 6;
+}
+
+message Operation {
+  string id = 1;
+  uint64 revision = 2;
+  Artifact artifact = 3;
+  string lease_id = 4;
+  int64 lease_expires_at_unix_millis = 5;
+  int64 deadline_unix_millis = 6;
+  OperationState state = 7;
+  string download_url = 8;
+}
+
+message OperationReport {
+  string id = 1;
+  string operation_id = 2;
+  string lease_id = 3;
+  uint64 sequence = 4;
+  OperationState state = 5;
+  int64 downloaded_bytes = 6;
+  string error_code = 7;
+  string error_message = 8;
+  InstalledApplication observed = 9;
+}
+
+message ReportReceipt {
+  string report_id = 1;
+  bool accepted = 2;
+  string reason = 3;
+}
+
+enum ComplianceState {
+  COMPLIANCE_STATE_UNSPECIFIED = 0;
+  COMPLIANCE_STATE_APPLIED = 1;
+  COMPLIANCE_STATE_PENDING = 2;
+  COMPLIANCE_STATE_FAILED = 3;
+  COMPLIANCE_STATE_UNSUPPORTED = 4;
+}
+
+message ApplicationCompliance {
+  string package_name = 1;
+  uint64 desired_revision = 2;
+  ComplianceState state = 3;
+  string reason = 4;
+}
+
+enum ErrorReason {
+  ERROR_REASON_UNSPECIFIED = 0;
+  ERROR_REASON_INVALID_INPUT = 1;
+  ERROR_REASON_TOKEN_INVALID = 2;
+  ERROR_REASON_TOKEN_EXPIRED = 3;
+  ERROR_REASON_TOKEN_CONSUMED = 4;
+  ERROR_REASON_RECOVERY_EXPIRED = 5;
+  ERROR_REASON_DEVICE_REVOKED = 6;
+  ERROR_REASON_UNAUTHENTICATED = 7;
+  ERROR_REASON_DEVICE_MISMATCH = 8;
+  ERROR_REASON_PROTOCOL_UNSUPPORTED = 9;
+  ERROR_REASON_STORAGE_UNAVAILABLE = 10;
+  ERROR_REASON_CONFLICT = 11;
+  ERROR_REASON_STALE_SEQUENCE = 12;
+}
+
+message ErrorDetail {
+  ErrorReason reason = 1;
+  bool retryable = 2;
+}
