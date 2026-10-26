@@ -1,6 +1,6 @@
 # Policies and kiosk
 
-Use `SetPolicy` to replace desired policy for an authorized device and `GetPolicy` to inspect desired, reported and per-rule compliance. Reusing a request key with the same normalized document is idempotent; changed content under that key conflicts.
+Use `SetPolicy` to update policy for a device your application is authorized to manage. Call `GetPolicy` to see the requested policy, the device's report and the result of each rule. Reuse a request key only when retrying the same policy; the same key cannot be used for different content.
 
 ```json
 {
@@ -11,17 +11,17 @@ Use `SetPolicy` to replace desired policy for an authorized device and `GetPolic
 }
 ```
 
-Register and assign required APKs first. Exact desired versions/signers are prerequisites for kiosk. If they disappear or drift, the agent suspends its kiosk lock until repair is observed.
+Register and assign required APKs before adding them to `required_packages`. Kiosk starts only after the device reports the required app at the expected version and signing identity. If an app is removed or changes, Kylok pauses kiosk until the device reports that the requirement is met again.
 
 | Setting | Meaning |
 | --- | --- |
-| `required_packages` | Existing desired app assignments, up to 64. Policy removal does not uninstall them. |
-| `lock_task` | Allowlist and designated launcher; managed locking must be observed, not just screen pinning. |
-| `camera_disabled`, `screen_capture_disabled` | Optional booleans; false is an explicit setting. |
-| `maximum_time_to_lock_millis` | 0–86400000; zero releases this admin's timeout restriction. |
-| `restrictions` | `no_add_user`, `no_debugging_features`, `no_modify_accounts`, `no_uninstall_apps`, each with an explicit boolean. |
-| `permissions` | Up to 64 required-package runtime rules: `package_name`, `permission`, and `DEFAULT`/`GRANTED`/`DENIED` state. Android may reject unsupported grants. |
+| `required_packages` | Up to 64 apps that have already been assigned. Removing an app from policy does not uninstall it. |
+| `lock_task` | Apps allowed in kiosk and the optional kiosk launcher. Kylok confirms kiosk after Android reports managed Lock Task; screen pinning is not enough. |
+| `camera_disabled`, `screen_capture_disabled` | Optional true/false settings. `false` explicitly requests that the feature remain enabled. |
+| `maximum_time_to_lock_millis` | A value from 0 to 86400000. `0` removes the timeout restriction set by this admin. |
+| `restrictions` | `no_add_user`, `no_debugging_features`, `no_modify_accounts` and `no_uninstall_apps`; set each rule to true or false. |
+| `permissions` | Up to 64 runtime-permission rules for required apps: `package_name`, `permission` and `DEFAULT`/`GRANTED`/`DENIED`. Android can reject unsupported grants. |
 
-This is a **full replacement**. Omitted previously managed settings restore their captured baseline. `{}` releases all Kylok policy controls. `DEFAULT` releases permission policy but does not revoke an existing grant. Hosts must not independently mutate the same admin setting while Kylok manages it.
+Each policy is a **full replacement**. If you omit a setting Kylok previously managed, it restores the original value it recorded. Send `{}` to release all Kylok-managed settings. `DEFAULT` stops managing a permission but does not revoke a permission that was already granted. Do not change the same Android admin setting elsewhere while Kylok manages it.
 
-Each rule reports `APPLIED`, `PENDING`, `FAILED` or `UNSUPPORTED` with a reason. A persistent baseline/attempt journal handles interruption and cleanup. Cached authenticated policies reconcile without server access. A current-boot system callback plus actual managed locking confirms kiosk entry. Physical OEM enforcement still requires device tests.
+Policy changes may take time. Each rule reports `APPLIED`, `PENDING`, `FAILED` or `UNSUPPORTED` with a reason. Previously received policies can continue to apply while the device is offline. Treat a successful API call as a request, not proof that Android applied the setting. Enforcement depends on the device and firmware, so test the policies on your target devices.

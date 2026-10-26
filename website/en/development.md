@@ -1,28 +1,20 @@
-# Development and generated documentation
+# Build from source
 
-The project uses Go 1.27.1, JDK 17, Gradle 9.3.1, Android Gradle Plugin 9.1.1 and Android SDK/build-tools 37. Set `JAVA_HOME`, `ANDROID_HOME` and Android tool paths first. Dependencies are pinned by Go sums and Gradle lockfiles.
+Kylok is experimental. APIs, schemas and local data formats may change without backward compatibility. If you build from source, keep the Go and Android SDKs on the same source revision.
+
+## Build and verify
+
+Use Go 1.27.1, JDK 17, Gradle 9.3.1, Android Gradle Plugin 9.1.1 and Android SDK/build-tools 37. Set `JAVA_HOME` and `ANDROID_HOME`, then run:
 
 ```sh
 make verify
 python3 scripts/check-repository.py
 ```
 
-Verification covers Go race/adapter tests, JVM agent behavior, HTTP/HTTPS interoperability, signed host updates, a new Go host and a minified Android host consuming packages. Simulator/build success does not prove Android OS enforcement.
+These checks cover the Go service, Android library, network exchange and package-based integration. Android installation and policy effects are simulated; successful builds do not confirm behavior on a physical device. Check the [compatibility page](compatibility.html) before choosing devices for a deployment.
 
-## Generate this site
+## Before you ship
 
-```sh
-python3 -m venv .tools/docs-venv
-.tools/docs-venv/bin/python -m pip install -r website/requirements.txt
-make docs
-```
+Your application owns business authorization, server lifecycle, Android application ID and signing. Only Android's provisioning flow can grant Device Owner. Validate network trust and the management policies on the devices you plan to support; an application-bundled certificate cannot change the trust check that Android Setup Wizard performs before installing the app.
 
-Go reference pages are extracted through Go's AST from current signatures and comments. Dokka generates the Android API from KDoc. Authored English/Vietnamese guides and generated references are assembled into `out/site`; a GitHub Pages workflow builds and deploys that artifact. Never hand-edit generated HTML.
-
-Every handwritten public method documents purpose and concrete usage; private/internal methods explain their purpose. Explain non-obvious protocol values, limits and effect ordering. Comments describe behavior, never development phase labels. Generated/third-party source is excluded from manual comment requirements.
-
-## Contribute
-
-Keep SDKs independent of examples and business frameworks. Preserve authentication, scope isolation, atomic token consumption, immutable APK integrity and operation idempotency. Keep desired/observed/compliance state separate. Development APIs and databases may change; do not add compatibility adapters just for earlier development builds. Preserve the original `design.md` and third-party notices. Original code is LGPL-3.0-only.
-
-CI runs Go/schema, Android/transport and package/release suites in parallel, with shared Go/Gradle caches. Every group must pass the required SDK check; documentation has a separate required build. Actions use current stable releases on Node 24, with monthly Dependabot update PRs. Hosted jobs pin Ubuntu 26.04, Go 1.27.3, Temurin 17.0.21+9 and Android command-line tools 23.0 (build 16111833). New compatible versions are resolved and pinned during updates. Merge deployment does not run tests.
+For contribution guidance, see the project's [contribution guide](https://github.com/thienvu18/kylok/blob/main/CONTRIBUTING.md).

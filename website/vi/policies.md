@@ -1,6 +1,6 @@
 # Chính sách và kiosk
 
-Dùng `SetPolicy` để thay chính sách yêu cầu của thiết bị được phân quyền và `GetPolicy` để xem cấu hình yêu cầu, báo cáo và tuân thủ từng quy tắc. Dùng lại khóa yêu cầu với cùng tài liệu chuẩn hóa là idempotent; nội dung khác dưới cùng khóa sẽ xung đột.
+Dùng `SetPolicy` để cập nhật chính sách cho thiết bị mà ứng dụng của bạn được phép quản lý. Gọi `GetPolicy` để xem chính sách đã gửi, báo cáo từ thiết bị và kết quả từng quy tắc. Chỉ dùng lại khóa yêu cầu khi gửi lại cùng một chính sách; cùng khóa đó không thể dùng cho nội dung khác.
 
 ```json
 {
@@ -11,17 +11,17 @@ Dùng `SetPolicy` để thay chính sách yêu cầu của thiết bị được
 }
 ```
 
-Đăng ký và gán APK bắt buộc trước. Đúng phiên bản/chữ ký được yêu cầu là điều kiện để vào kiosk. Khi chúng biến mất hoặc sai lệch, tác nhân tạm dừng khóa kiosk đến khi quan sát được kết quả sửa chữa.
+Hãy đăng ký và gán APK trước khi thêm ứng dụng vào `required_packages`. Kiosk chỉ khởi động sau khi thiết bị báo đã cài đúng phiên bản và chữ ký của ứng dụng bắt buộc. Nếu ứng dụng bị gỡ hoặc thay đổi, Kylok tạm dừng kiosk cho đến khi thiết bị xác nhận điều kiện đã được đáp ứng lại.
 
 | Thiết lập | Ý nghĩa |
 | --- | --- |
-| `required_packages` | Các ứng dụng đã được gán, tối đa 64. Bỏ khỏi chính sách không gỡ cài đặt. |
-| `lock_task` | Danh sách cho phép và ứng dụng khởi chạy; phải quan sát được khóa quản lý thực, không chỉ ghim màn hình. |
-| `camera_disabled`, `screen_capture_disabled` | Boolean tùy chọn; false là một yêu cầu rõ ràng. |
-| `maximum_time_to_lock_millis` | 0–86400000; 0 bỏ hạn chế thời gian khóa do admin này đặt. |
-| `restrictions` | `no_add_user`, `no_debugging_features`, `no_modify_accounts`, `no_uninstall_apps`, mỗi mục có boolean rõ ràng. |
-| `permissions` | Tối đa 64 quy tắc runtime cho ứng dụng bắt buộc: `package_name`, `permission` và `DEFAULT`/`GRANTED`/`DENIED`. Android có thể từ chối quyền không hỗ trợ. |
+| `required_packages` | Tối đa 64 ứng dụng đã được gán. Bỏ ứng dụng khỏi chính sách không gỡ ứng dụng khỏi thiết bị. |
+| `lock_task` | Danh sách ứng dụng được dùng trong kiosk và ứng dụng khởi chạy (nếu có). Kylok xác nhận kiosk sau khi Android báo đã bật Lock Task; ghim màn hình là chưa đủ. |
+| `camera_disabled`, `screen_capture_disabled` | Có thể đặt true/false. `false` nghĩa là yêu cầu giữ tính năng ở trạng thái bật. |
+| `maximum_time_to_lock_millis` | Giá trị từ 0 đến 86400000. `0` bỏ giới hạn thời gian khóa do admin này đặt. |
+| `restrictions` | Các mục `no_add_user`, `no_debugging_features`, `no_modify_accounts`, `no_uninstall_apps`; đặt true hoặc false cho từng mục. |
+| `permissions` | Tối đa 64 quy tắc quyền runtime cho ứng dụng bắt buộc: `package_name`, `permission` và `DEFAULT`/`GRANTED`/`DENIED`. Android có thể từ chối cấp quyền không hỗ trợ. |
 
-Đây là **thay thế đầy đủ**. Bỏ một thiết lập từng quản lý sẽ khôi phục giá trị ban đầu đã lưu. `{}` trả toàn bộ điều khiển của Kylok. `DEFAULT` bỏ chính sách quyền, không thu hồi quyền đã cấp. Ứng dụng chủ không được đồng thời thay cùng thiết lập admin khi Kylok quản lý.
+Mỗi lần gửi `SetPolicy` là một **bản thay thế đầy đủ**. Nếu bỏ một thiết lập Kylok đang quản lý, SDK sẽ khôi phục giá trị ban đầu đã ghi nhận. Gửi `{}` để trả lại toàn bộ thiết lập do Kylok quản lý. `DEFAULT` ngừng quản lý quyền nhưng không thu hồi quyền đã được cấp trước đó. Không thay đổi cùng thiết lập admin ở nơi khác trong lúc Kylok đang quản lý.
 
-Từng quy tắc báo `APPLIED`, `PENDING`, `FAILED` hoặc `UNSUPPORTED`, kèm lý do. Nhật ký giá trị ban đầu/lần thử xử lý gián đoạn và khôi phục. Chính sách đã xác thực vẫn được đối chiếu khi mất máy chủ. Callback hệ thống của lần khởi động hiện tại cùng khóa quản lý thực xác nhận kiosk. Hiệu lực trên firmware OEM vẫn cần kiểm tra thiết bị.
+Việc áp dụng chính sách có thể mất thời gian. Từng quy tắc báo `APPLIED`, `PENDING`, `FAILED` hoặc `UNSUPPORTED`, kèm lý do. Chính sách đã nhận vẫn có thể tiếp tục áp dụng khi thiết bị ngoại tuyến. Hãy xem phản hồi API là yêu cầu gửi đi, không phải bằng chứng Android đã áp dụng thiết lập. Hiệu lực tùy thiết bị và firmware; hãy kiểm tra trên các thiết bị mục tiêu.

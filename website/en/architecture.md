@@ -1,24 +1,24 @@
 # Architecture and transport
 
-Kylok is an SDK pair, not a mandatory business framework. The Go host owns authorization, listeners and lifecycle. The Android host owns application ID, signing, network trust and the UI. Examples consume public APIs; SDK code does not depend on examples or a business application.
+Kylok adds device-management capabilities to applications you already own. The Go SDK runs inside your server; the Android library runs inside your device app. You keep control of authorization, server lifecycle, Android application ID, signing and the experience your users see. The examples show one way to connect the two sides.
 
 | Component | Responsibility |
 | --- | --- |
-| Go facade | Enrollment/QR, registry, app catalog/assignments, operations, policies and optional events. |
-| SQLite/filesystem defaults | Durable transactions, scoped identity, immutable verified APK bytes. |
-| Android AAR | Provisioning callbacks, encrypted state, sync, download/install and policy reconciliation. |
-| Shared Protobuf | Typed request/response, revision, report, error and compliance contracts. |
+| Go server SDK | Create enrollment codes, manage devices, assign apps and set policies. |
+| Built-in storage | Keep device records, policies and verified APKs in SQLite and the filesystem. |
+| Android library | Join a managed fleet, receive assignments, install apps and report device status. |
+| Your applications | Handle business authorization, server lifecycle, app identity, signing and user interface. |
 
-## LAN origins
+## Server addresses and transport
 
-HTTP/HTTPS and IP/domain origins are normal configurations. The configured scheme selects transport; there is no automatic downgrade. HTTPS verifies certificate/hostname trust. HTTP does not encrypt enrollment or bearer credentials in transit. The API and bootstrap APK may use independent origins.
+Use an IP address or domain name with HTTP or HTTPS. Kylok follows the scheme you configure and never downgrades HTTPS automatically. HTTPS verifies the certificate and server name; HTTP does not encrypt enrollment tokens or device credentials in transit. You can host the API and the initial Android APK at different addresses.
 
-The Android client uses HTTP/2 gRPC. HTTP requires h2c support on the Go listener. Setup Wizard trust before APK installation is separate from trust configured inside the installed host. A private CA bundled in an app cannot make an earlier Setup Wizard download trusted.
+The Android SDK communicates over HTTP/2. If you serve HTTP, your Go listener must support h2c; HTTPS listeners must support HTTP/2. Before QR provisioning downloads the Android app, Android Setup Wizard must trust the certificate used by the APK server. Trust settings inside the installed app cannot change that earlier check.
 
-## Durable identity and effects
+## Durable identities and device changes
 
-An enrollment token is single-use and scope-bound. Android persists an attempt/key before claiming it. The server atomically consumes the token, creates the identity and stores a key-bound encrypted recovery receipt. Matching retries recover the same identity; stolen replay bindings and revoked identities fail.
+Each enrollment QR contains a single-use token tied to a management scope. If setup is interrupted, the device can retry the same enrollment and recover the same identity. Revoked devices cannot reconnect with their old credentials.
 
-Sync persists requests before sending and binds each sequence to its exact body. Desired revision, reported revision and actual observations are distinct. Installer sessions and policy attempts are journaled before external effects. Observed package/version/signers and effective policy readback establish results; callbacks and setters alone do not.
+Kylok keeps requested app and policy state separate from what Android reports as installed or applied. A download, installer callback or policy command is not treated as success on its own: Kylok checks the installed package and version, and reports policy outcomes per rule. Saved work can resume after a network or process interruption.
 
-Custom providers must preserve those invariants, concurrency/context behavior and lifecycle ownership. Optional status/event observers are read-only and best-effort. Real business/audit delivery needs a transactional host outbox, not notification hooks.
+If you provide your own storage, it must preserve device isolation and durable operations. Status and event callbacks are optional notifications; use your own application storage for records that must become part of a durable business or audit log.

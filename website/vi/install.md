@@ -1,69 +1,59 @@
 # Cài đặt và tích hợp
 
-Kylok gồm hai SDK có phiên bản độc lập. Bản phát triển hiện tại là Go `0.1.0-dev` và Android `0.1.0-dev`, dùng giao thức 1. Ghép hai SDK từ cùng một phiên bản mã nguồn; số giao thức giống nhau không bảo đảm tương thích giữa các bản phát triển.
+Kylok gồm hai thư viện phối hợp với nhau: SDK Go chạy trên máy chủ và thư viện Android Device Policy Controller (DPC) chạy trong ứng dụng trên thiết bị. Chọn hai phiên bản Go và Android thuộc cùng một lần phát hành. Ứng dụng của bạn vẫn tự quản lý phân quyền nghiệp vụ, vòng đời máy chủ, application ID và khóa ký.
 
 ## Lấy gói SDK
 
-Chọn phiên bản tại [GitHub Releases](https://github.com/thienvu18/kylok/releases). Go module công khai và Maven Central không cần tài khoản đọc. Với `mavenCentral()`, khai báo `io.github.thienvu18.kylok:kylok-dpc:VERSION`; dùng `go get github.com/thienvu18/kylok/go@vVERSION` cho Go. Thay VERSION bằng phiên bản SDK đã phát hành. Để dùng gói cục bộ, chạy tại thư mục dự án với bộ công cụ đã cài:
+Chọn phiên bản tại [GitHub Releases](https://github.com/thienvu18/kylok/releases). Go module được công khai; thư viện Android có trên Maven Central. Cả hai đều không cần thông tin đăng nhập để tải. Gói phát triển có thể thay đổi mà không bảo đảm tương thích ngược, vì vậy hãy dùng đúng cặp SDK của cùng một lần phát hành.
+
+## Tích hợp vào máy chủ Go
+
+Thêm SDK Go vào module của máy chủ:
 
 ```sh
-make distribution
-make test-consumers
+go get github.com/thienvu18/kylok/go@vVERSION
 ```
 
-`out/release` chứa Go module proxy, Maven repository, metadata đã kiểm tra, mã nguồn/giấy phép và checksum. `make test-release` tạo gói tải xuống đầy đủ tại `out/release-assets`. Không chỉ chép tệp AAR: metadata Maven cung cấp các dependency cần thiết.
-
-## Ứng dụng chủ Go
-
-Module: `github.com/thienvu18/kylok/go`. Để dùng gói cục bộ, thêm `go-proxy` đã tạo làm file proxy. Phiên bản Go công khai sẽ dùng tag `go/vX.Y.Z` trong repository.
-
-Từ một module mới, thay đường dẫn tuyệt đối đến gói đã giải nén:
-
-```sh
-GOWORK=off GOPROXY=file:///absolute/path/to/release/go-proxy,https://proxy.golang.org \
-  GONOSUMDB=github.com/thienvu18/kylok/go \
-  go get github.com/thienvu18/kylok/go@v0.1.0-dev
-```
-
-Ngoại lệ cơ sở dữ liệu checksum chỉ dùng cho bản cục bộ chưa phát hành. Bản công khai dùng xác minh module thông thường.
+Kiểm tra APK host đã ký, khởi tạo SDK rồi gắn handler vào máy chủ:
 
 ```go
 apk, err := provisioning.Inspect(ctx, signedHostAPK, provisioning.Tools{})
 // Xử lý err trước khi khởi tạo SDK.
 sdk, err := kylok.New(ctx, kylok.Options{
-    PublicURL: "http://192.168.101.5:8080",
+    PublicURL: "https://mdm.example.com",
     Bootstrap: apk,
     DataDir: "/var/lib/kylok",
 })
-// Xử lý err. Gắn sdk.Handler() vào listener do ứng dụng chủ quản lý.
+// Xử lý err. Gắn sdk.Handler() vào HTTP server của bạn.
 ```
 
-Ứng dụng chủ chịu trách nhiệm phân quyền nghiệp vụ, listener và quá trình tắt. Phải bật HTTP/2: với HTTP, dùng `http.Protocols.SetUnencryptedHTTP2(true)` cùng HTTP/1; với HTTPS, dùng HTTP/2 và chứng chỉ được tin cậy. Listener chỉ hỗ trợ HTTP/1 không phục vụ được gRPC của Android.
+Máy chủ của bạn quyết định cách phân quyền, địa chỉ lắng nghe và thời điểm dừng. SDK Android dùng gRPC qua HTTP/2: hãy bật HTTP/2 trên listener; nếu dùng HTTP, cần bật thêm h2c. Listener chỉ hỗ trợ HTTP/1 sẽ không phục vụ được ứng dụng Android.
 
-`CreateEnrollment`/`QR` tạo đăng ký; `ListDevices`/`RevokeDevice` quản lý định danh; API ứng dụng đăng ký/gán/liệt kê/xóa metadata đã xác minh; API chính sách thay cấu hình yêu cầu và đọc mức tuân thủ. Mặc định dùng SQLite/hệ thống tệp bền vững. Provider tùy chỉnh của `ports` do ứng dụng chủ quản lý vòng đời và phải vượt bộ kiểm tra hợp đồng.
+Dùng API Go để tạo QR đăng ký, xem hoặc thu hồi thiết bị, đăng ký và gán APK, theo dõi tiến độ cài đặt, đặt hoặc kiểm tra chính sách. SDK có sẵn lưu trữ bằng SQLite và hệ thống tệp. Nếu sản phẩm cần lưu ở nơi khác, bạn có thể cung cấp bộ lưu trữ riêng qua các interface trong `ports`.
 
-## Ứng dụng chủ Android
+## Tích hợp vào ứng dụng Android
 
-Cấu hình Maven repository trỏ đến repository cục bộ đã giải nén, rồi khai báo:
+Thêm Maven Central và dependency Kylok vào ứng dụng Android:
 
 ```kotlin
-// Cấu hình repository dependency của ứng dụng chủ:
 repositories {
     google()
     mavenCentral()
-    maven { url = uri("/absolute/path/to/release/maven") }
 }
-// Module Android của ứng dụng chủ:
-implementation("io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev")
+dependencies {
+    implementation("io.github.thienvu18.kylok:kylok-dpc:VERSION")
+}
 ```
 
-Dùng JDK 17, min SDK 33, compile/target SDK 37 và trình biên dịch Kotlin 2.2 tương thích. Ứng dụng chủ sở hữu application ID, khóa ký, quyền HTTP/cấu hình tin cậy TLS và chính sách sao lưu. Giữ các thành phần provisioning và quy tắc loại trừ dữ liệu của AAR. Chỉ quy trình thiết lập Android có thể cấp Device Owner.
+Dùng JDK 17, min SDK 33, compile/target SDK 37 và trình biên dịch Kotlin 2.2 tương thích. Ứng dụng của bạn sở hữu application ID, khóa ký, cấu hình tin cậy mạng và chính sách sao lưu. Giữ lại các thành phần provisioning và quy tắc loại trừ dữ liệu sao lưu do thư viện cung cấp. Chỉ quy trình provisioning của Android mới cấp được quyền Device Owner.
+
+Đọc trạng thái thiết bị hoặc lên lịch đồng bộ từ ứng dụng:
 
 ```kotlin
 val registration = Kylok.observe(StatusListener { status -> render(status) })
 Kylok.snapshot(context) { status -> render(status) }
-// Đóng registration theo vòng đời ứng dụng chủ.
-Kylok.retry(context) // lên lịch đồng bộ; kết quả được quan sát riêng
+// Đóng registration theo vòng đời ứng dụng.
+Kylok.retry(context) // lên lịch đồng bộ; đọc kết quả riêng sau đó
 ```
 
-Chỉ gọi `Kylok.confirmPendingInstall` từ thao tác chủ động của người dùng khi Android yêu cầu xác nhận. Hook trạng thái/sự kiện chỉ đọc, phân phối best-effort; không thể phê duyệt chính sách hay bỏ qua xác thực. Xem [API](api.html) và [luồng ứng dụng mẫu](examples.html).
+Chỉ gọi `Kylok.confirmPendingInstall` sau thao tác của người dùng khi Android yêu cầu xác nhận cài đặt. Callback trạng thái chỉ để đọc; chúng không phê duyệt chính sách hay bỏ qua xác thực. Xem [tham chiếu API](api.html) và [luồng ứng dụng mẫu](examples.html).

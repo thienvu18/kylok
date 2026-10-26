@@ -1,23 +1,23 @@
 # Compatibility and evidence
 
-Source targets are Android API 33–37, with min SDK 33 and compile/target 37. That range is not a certified device/firmware matrix. Go/Android development packages are paired from one source revision; [GitHub Releases](https://github.com/thienvu18/kylok/releases) records public versions.
+Kylok targets Android API 33–37, with min SDK 33 and compile/target 37. This is the supported build range, not a certification for every device or firmware in that range. Use the Go and Android packages from the same release; [GitHub Releases](https://github.com/thienvu18/kylok/releases) lists available versions.
 
-[Hosted SDK checks](https://github.com/thienvu18/kylok/actions/runs/40282303400) and the [documentation build](https://github.com/thienvu18/kylok/actions/runs/40282303423) passed on 2026-10-26 for source `4e0730f`. They establish automated integration, not physical Android support or registry availability.
+[SDK integration checks](https://github.com/thienvu18/kylok/actions/runs/40282303400) passed on 2026-10-26 for source `4e0730f`. They confirm the Go and Android packages work together in automated environments; they do not certify a physical Android device.
 
 | Evidence | What it proves |
 | --- | --- |
-| Go race/transaction tests | Enrollment binding, scoped persistence, replay, leases, policy/operation contracts. |
-| JVM HTTP/HTTPS fixtures | Actual Go↔Kotlin wire, encrypted enrollment, authenticated downloads and reports; platform effects are simulated. |
-| Android builds/minification/lint | Source and package integration, including merged DPC resources and retained reflective components. |
-| Independent package consumers | A new Go host and Android host integrate from packages without copied SDK sources or project substitutions. |
-| POCO Pad X1, Android 15 / API 35, HyperOS OS2.0.205.0.VOZMIXM | Historical original development APK: QR setup and authenticated LAN HTTP enrollment, **with WAN available**. |
+| Go server behavior | Enrollment, device scoping, sync, app assignments and policy operations are covered by automated checks. |
+| Go and Android communication | Authenticated enrollment, APK downloads and reports work over HTTP/HTTPS; Android installation and policy effects are simulated. |
+| Android package integration | The AAR builds and works in independent Android apps, including a minified app build. |
+| Package-based integration | Independent Go and Android apps consume the published SDK packages without copying SDK source into their projects. |
+| POCO Pad X1, Android 15 / API 35, HyperOS OS2.0.205.0.VOZMIXM | One development APK completed QR setup and authenticated LAN enrollment over HTTP, **with internet available**. |
 
-## Maintainer-owned physical checks
+## What still needs testing on devices
 
-- Factory-reset QR provisioning with WAN blocked through setup/download/enrollment, while LAN remains reachable.
-- Real silent app installation/update, rejected/corrupt/incompatible APKs and required user action.
-- Lost callbacks, process termination, LAN loss, server restart and device reboot, preserving identity/checkpoints.
-- Higher-version same-signing DPC replacement retaining Device Owner, identity and connectivity.
-- Actual kiosk entry/exit, required-app drift handling, permissions, restrictions and baseline restoration.
+- Enroll a reset device with internet blocked throughout setup and APK download while keeping the management server reachable on the LAN.
+- Install and update apps on a real device, including failed, incompatible and user-confirmed installations.
+- Recover device identity and unfinished work after network loss, process termination, server restart and device reboot.
+- Update the DPC while keeping Device Owner status, device identity and connectivity.
+- Apply and release kiosk, app, permission and restriction policies on the target firmware.
 
-Record exact source/SDK/APK identity, digest/signer, model/API/firmware, transport and network conditions. Do not publish enrollment QR, tokens, credentials, private keys or personal identifiers. New dashboards display evidence; they cannot create physical compatibility proof.
+If your deployment depends on one of these scenarios, verify it on the exact device, firmware and network setup you intend to use. Treat enrollment QR codes, tokens, credentials and private keys as secrets.
