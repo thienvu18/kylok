@@ -4,34 +4,28 @@
 For structural codebase exploration, use the installed `codebase-memory` skill.
 <!-- codebase-memory-mcp:end -->
 
-## Current state and documentation
+## Scope and current state
 
-Kylok is a design-stage, self-hosted Android device management SDK. This checkout currently contains documentation and licensing, with no SDK source, build system, CI, or runnable examples. Do not infer implementation from a proposed directory tree or API sketch.
+Kylok is an experimental Go/Android device management SDK. Work through M6 covers enrollment, durable sync, APK lifecycle, policies/kiosk, package consumers and release tooling. Remote publication and physical release gates remain separate; current evidence is in `docs/compatibility.md`. Keep claims limited to recorded evidence. Do not expand feature scope without a task.
 
-- `design.md`: original Vietnamese v1 design draft; preserve it as the source reference.
-- `README.md`: concise public introduction and current availability.
-- `ROADMAP.md`: public milestones M0–M6 and thirteen v1 release gates.
-- `docs/architecture.md`: intended component boundaries and invariants.
-- `docs/implementation-plan.md`: work packages, dependencies, and required validation.
-- `docs/github-publishing.md`: repository identity, description, topics, keywords, and future release tag conventions.
-- `CONTRIBUTING.md`: contribution and evidence expectations.
-- `NOTICE`, `LICENSE`, `COPYING`: LGPL-3.0-only declaration, LGPLv3 text, and incorporated GPLv3 text.
+Development APIs, schemas, and local data formats may change without backward compatibility. Do not add legacy adapters or migrations solely for earlier development builds. Preserve `design.md` as the original draft; current decisions live in `docs/architecture.md` and `docs/enrollment-protocol.md`.
 
-## Architecture constraints
+## Boundaries
 
-- Deliver two SDKs: one main Go module in `go/` and one Android AAR in `android/kylok-dpc/`, with shared typed contracts in `proto/kylok/v1/`.
-- Keep `minimal-server` and `minimal-dpc` as public-API-only example consumers. SDKs must not depend on examples, fDCMS, or a business framework.
-- Default integration must work with validated required configuration and built-in adapters. Custom providers are optional; do not silently create temporary persistence.
-- The Go host owns server/TLS lifecycle and business authorization. The Android host owns APK application ID and signing. The AAR does not grant Device Owner privileges by itself.
-- Separate desired, observed, and compliance state. Persist identity, pending work, progress, and unsent reports. Confirm Android outcomes before reporting success.
-- Preserve device authentication, enrollment validation, scope isolation, APK integrity/signing, ownership checks, and operation idempotency through all extension paths.
+- One Go module in `go/`, one Android AAR in `android/kylok-dpc/`, shared schema in `proto/kylok/v1/`.
+- Examples consume public APIs only. SDKs must not depend on examples, fDCMS, or a business framework.
+- HTTP/HTTPS and IP/domain origins are normal configurations. The URL selects transport; HTTPS verifies certificates/hostnames without automatic downgrade.
+- Hosts own business authorization, server lifecycle, application ID and signing. The AAR cannot grant itself Device Owner.
+- Preserve authentication, scope isolation, atomic token consumption, retry binding, APK integrity, ownership checks, and operation idempotency across adapters.
+- Keep desired, observed and compliance state distinct. Persist checkpoints before external effects; report success only after observation.
+- Journal original policy settings before effects; restore only managed settings. Kiosk requires verified app prerequisites and observed managed locking.
+- Default persistence is durable; no temporary fallback. Custom providers remain host-owned.
+- Optional event/status observers are read-only and best-effort; their failures cannot change authentication or committed operations.
 
-## Implementation and validation
+## Work and verification
 
-Start with M0 and only the minimum M1 scaffolding needed to prove LAN QR provisioning on a physical device with WAN blocked. Do not generate the entire planned module tree before that gate.
+Kylok is an open-source library: every handwritten public method must document its purpose, contract and a concrete usage example (or explain how Android invokes a platform callback). Every private/internal method must have a clear purpose comment. Explain non-obvious statements, protocol encodings, ordering, limits and other magic values; prefer named constants when they clarify the rule. Comments describe behavior and reasons, never project phases or milestone labels such as “Phase 1” or “M2”. Do not edit generated/third-party code to satisfy these rules. Keep generated API documentation and the English/Vietnamese documentation site current when APIs change.
 
-API 33–37, compile/target API 37, and Fully Managed Device Owner are design targets. Verify toolchain/platform details before coding. Publish compatibility only with API/model/firmware evidence; distinguish automated, emulator, and physical-device results.
+Use `make verify` and `python3 scripts/check-repository.py`; prerequisites are in `docs/development.md`. This includes independent Go/Maven consumers and release checks. Keep `go/VERSION`, `android/VERSION` and package docs aligned; development pairs use one source revision. Keep docs concise, in English, and aligned with code. Original code uses LGPL-3.0-only; preserve third-party notices and mirrored Go license texts.
 
-There are no build/test commands yet. Introduce commands with real targets and document them when implementation begins. For documentation changes, check links, headings, milestone consistency, and licensing references. Update related docs together when a contract or status changes. Preserve the user's unrelated changes; do not stage, commit, tag, push, or publish unless explicitly requested.
-
-Use English for public documentation. Keep readiness claims explicit and avoid placeholder install commands, coordinates, badges, URLs, or support claims. Original project contributions use `LGPL-3.0-only`; preserve applicable third-party notices.
+Preserve unrelated changes and existing staging. Do not stage, commit, tag, push or publish unless explicitly requested.

@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Fresh Kylok host</string>
+    <string name="status">Kylok %1$s: %2$s</string>
+</resources>

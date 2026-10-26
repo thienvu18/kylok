@@ -1,0 +1,36 @@
+<resources>
+    <string name="refresh">Sync now</string>
+    <string name="read_status">Refresh view</string>
+    <string name="confirm_install">Review pending installation</string>
+    <string name="app_name">Kylok</string>
+    <string name="loading_status">Loading Kylok status…</string>
+    <string name="overview">Overview</string>
+    <string name="applications">Applications</string>
+    <string name="policies">Policies &amp; kiosk</string>
+    <string name="operations">Operations</string>
+    <string name="diagnostics">About</string>
+    <string name="agent_heading">%1$s · SDK %2$s</string>
+    <string name="management">Management</string>
+    <string name="management_values">Device Owner: %1$s\nScope: %2$s\nDevice identity: %3$s</string>
+    <string name="connection">Connection &amp; checkpoints</string>
+    <string name="connection_values">Server: %1$s\nLAN permission: %2$s\nLast authenticated sync: %3$s\nDesired revision: %4$d\nSync sequence: %5$d\nPending reports: %6$d</string>
+    <string name="not_synced">Not synced yet</string>
+    <string name="last_result">Last result</string>
+    <string name="provisioning_title">Enroll this device</string>
+    <string name="provisioning_help">Create an enrollment QR in the server console. On a factory-reset device, open Android enterprise setup, join the LAN and scan. Opening this app alone cannot grant Device Owner.</string>
+    <string name="allow_lan">Allow local network access</string>
+    <string name="apps_help">Apps are assigned from the server. Desired and last-synced observed versions are distinct. Signed agent self-updates use the same flow.</string>
+    <string name="no_apps">No desired applications in the last authenticated snapshot.</string>
+    <string name="app_values">Desired version: %1$d\nObserved version: %2$s\nCompliance: %3$s\nReason: %4$s</string>
+    <string name="policies_help">Required apps, runtime permissions, camera/screen capture, user restrictions, timeout and kiosk are managed from the server. Each rule has its own observation.</string>
+    <string name="no_policies">No local policy report yet.</string>
+    <string name="policy_values">State: %1$s\nReason: %2$s\nObserved value: %3$s</string>
+    <string name="operations_help">Download and installer checkpoints survive process restarts. Waiting for Android or user action is not an installed-state success.</string>
+    <string name="no_operations">No retained local installation operations.</string>
+    <string name="operation_values">Stage: %1$s\nTarget version: %2$d\nDownloaded: %3$d / %4$d bytes\nError: %5$s\nOperation: %6$s</string>
+    <string name="device">Device</string>
+    <string name="sdk_identity">SDK &amp; host</string>
+    <string name="sdk_values">SDK: %1$s\nProtocol: %2$d\nHost application: %3$s\nLicense: LGPL-3.0-only</string>
+    <string name="observation_limits">Reading this dashboard</string>
+    <string name="limits_help">App inventory is from the last authenticated sync. Policy and operation progress comes from protected local state. Check server compliance for acknowledged results. Physical Android behavior requires device verification.</string>
+</resources>

@@ -1,0 +1,4 @@
+* text=auto eol=lf
+*.bat text eol=crlf whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+*.jar binary
+*.binpb binary
