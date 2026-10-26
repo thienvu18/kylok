@@ -29,6 +29,19 @@ source_release = load("kylok_source_release", "release-source.py")
 central = load("kylok_central", "central.py")
 
 
+class CheckoutIntegrity(unittest.TestCase):
+    def test_committed_source_is_clean_after_a_fresh_checkout(self):
+        # A working tree can hide non-normalized index bytes until CI checks out the committed tree.
+        with tempfile.TemporaryDirectory(prefix="kylok-checkout-integrity-") as directory:
+            subprocess.run(["git", "init", "--quiet", directory], check=True, capture_output=True)
+            subprocess.run(["git", "-C", directory, "fetch", "--quiet", "--depth", "1", str(ROOT), "HEAD"],
+                           check=True, capture_output=True)
+            subprocess.run(["git", "-C", directory, "checkout", "--quiet", "--detach", "FETCH_HEAD"],
+                           check=True, capture_output=True)
+            status = subprocess.check_output(["git", "-C", directory, "status", "--porcelain", "--untracked-files=all"])
+            self.assertEqual(status, b"", "Committed source is dirty in a fresh checkout: " + status.decode())
+
+
 class AutomaticPublication(unittest.TestCase):
     def test_central_bundle_rejects_tampered_payloads_and_unexpected_paths(self):
         with tempfile.TemporaryDirectory(prefix="kylok-central-bundle-") as directory:
