@@ -2,6 +2,8 @@
 
 Source targets are Android API 33–37, with min SDK 33 and compile/target 37. That range is not a certified device/firmware matrix. Go/Android development packages are paired from one source revision; [GitHub Releases](https://github.com/thienvu18/kylok/releases) records public versions.
 
+[Hosted SDK checks](https://github.com/thienvu18/kylok/actions/runs/40282303400) and the [documentation build](https://github.com/thienvu18/kylok/actions/runs/40282303423) passed on 2026-10-26 for source `4e0730f`. They establish automated integration, not physical Android support or registry availability.
+
 | Evidence | What it proves |
 | --- | --- |
 | Go race/transaction tests | Enrollment binding, scoped persistence, replay, leases, policy/operation contracts. |

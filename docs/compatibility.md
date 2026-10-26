@@ -2,7 +2,10 @@
 
 ## Current automated checks
 
-**Passed locally (2026-10-26):** source-only `make verify`, deterministic generation, repository checks and generated documentation. Both HTTP/HTTPS fixtures executed all 51 JVM tests without skips/failures; Go race checks passed. Fresh Go/minified Android package consumers, exact package contents, twelve release failure/tampering/publication tests and workflow lint passed. Chrome checks covered real console QR/redraw/enrollment, signed APK registration/assignment, policy submission, scope switching, bilingual navigation/search/API links and mobile layouts. Installed toolchains/global dependency caches were reused. No hosted CI, remote publication or new physical support is claimed.
+**Passed locally (2026-10-26):** source-only `make verify`, deterministic generation, repository checks and generated documentation. Both HTTP/HTTPS fixtures executed all 51 JVM tests without skips/failures; Go race checks passed. Fresh Go/minified Android package consumers, exact package contents, twelve release failure/tampering/publication tests and workflow lint passed. Chrome checks covered real console QR/redraw/enrollment, signed APK registration/assignment, policy submission, scope switching, bilingual navigation/search/API links and mobile layouts. Installed toolchains/global dependency caches were reused. No remote publication or new physical support is claimed.
+
+
+**Passed on GitHub (2026-10-26):** [SDK checks](https://github.com/thienvu18/kylok/actions/runs/40282303400) and [documentation build](https://github.com/thienvu18/kylok/actions/runs/40282303423) passed for source `4e0730fd2743c1b9b82028b70b89224adf0498d2`. Go/schema, Android/HTTP/HTTPS/host-update/console and independent package/release checks ran in parallel; the required SDK gate passed. Longest SDK group: 5m35s; documentation: 2m13s. Actions declare Node 24; cache reuse and monthly dependency updates are configured. Registry publication and Pages deployment remain pending.
 
 | Check | What it establishes |
 | --- | --- |

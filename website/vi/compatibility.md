@@ -2,6 +2,8 @@
 
 Nguồn nhắm Android API 33–37, với min SDK 33 và compile/target 37. Khoảng này không phải ma trận thiết bị/firmware đã chứng nhận. Gói Go/Android phát triển ghép từ cùng một mã nguồn; [GitHub Releases](https://github.com/thienvu18/kylok/releases) ghi các phiên bản đã công khai.
 
+[Kiểm tra SDK trên GitHub](https://github.com/thienvu18/kylok/actions/runs/40282303400) và [build tài liệu](https://github.com/thienvu18/kylok/actions/runs/40282303423) đã vượt qua ngày 2026-10-26 với nguồn `4e0730f`. Kết quả chứng minh tích hợp tự động, không chứng nhận thiết bị Android hay xác nhận gói đã có trên registry.
+
 | Bằng chứng | Chứng minh điều gì |
 | --- | --- |
 | Go race/giao dịch | Binding đăng ký, lưu trữ theo phạm vi, replay, lease và hợp đồng chính sách/tác vụ. |
