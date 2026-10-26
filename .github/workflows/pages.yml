@@ -13,7 +13,7 @@ concurrency:
 jobs:
   build:
     name: Documentation build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     env:
       GRADLE_OPTS: -Dorg.gradle.caching=true
@@ -34,7 +34,7 @@ jobs:
   deploy:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       pages: write
       id-token: write

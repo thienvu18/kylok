@@ -1,12 +1,12 @@
 name: Kylok build toolchain
-description: Set up current Go and compatible Android tools with shared dependency caches.
+description: Set up pinned Go and compatible Android tools with shared dependency caches.
 inputs:
   android:
     description: Install the Android toolchain in addition to Go.
     default: 'true'
 outputs:
   go-version:
-    description: Resolved stable Go toolchain version.
+    description: Resolved pinned Go toolchain version.
     value: ${{ steps.go.outputs.go-version }}
 runs:
   using: composite
@@ -14,8 +14,7 @@ runs:
     - id: go
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
-        go-version: stable
-        check-latest: true
+        go-version: 1.27.3
         cache-dependency-path: |
           go/go.sum
           examples/minimal-server/go.sum
@@ -24,11 +23,11 @@ runs:
       uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
       with:
         distribution: temurin
-        java-version: '17'
-        check-latest: true
+        java-version: '17.0.21+9'
     - if: inputs.android == 'true'
       uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
       with:
+        cmdline-tools-version: '16111833' # 23.0
         packages: platform-tools platforms;android-37.0 build-tools;37.0.0
         log-accepted-android-sdk-licenses: false
     - if: inputs.android == 'true'
