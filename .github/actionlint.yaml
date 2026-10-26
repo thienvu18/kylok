@@ -1,0 +1,5 @@
+# Ubuntu 26.04 is GA; actionlint 1.7.12's built-in runner catalog predates this hosted label.
+# The custom-label list extends lint validation only; workflows still select GitHub-hosted runners.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
