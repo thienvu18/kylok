@@ -39,7 +39,7 @@ make test-release
 
 `out/release` contains a Go file proxy, Maven repository with AAR/sources/KDoc/POM/module metadata, corresponding source, licenses, dependency manifests, `kylok-release.json` and `SHA256SUMS`. `out/release-assets/kylok-distribution.zip` is the complete downloadable archive. Dirty local snapshots are identified and cannot enter publication. Packaging excludes private keys, generated trust, runtime data and build output.
 
-`scripts/check-distribution.py out/release` checks hashes, source identity, archives, notices and metadata. Independent consumers resolve packages without source substitution; Android also builds with minification. `make test-release` covers invalid source/version/tag gates, artifact tampering and publication retry behavior. These tests run on PRs.
+`scripts/check-distribution.py out/release` checks hashes, source identity, archives, notices and metadata. Independent consumers resolve packages without source substitution; Android also builds with minification. `make test-release` covers fresh-checkout cleanliness, invalid source/version/tag gates, artifact tampering and publication retry behavior. Git stores text with normalized LF bytes; the Windows wrapper checks out as CRLF through `.gitattributes`. These tests run on PRs.
 
 After publication, maintainers can explicitly run `KYLOK_REMOTE_SDK=all ./scripts/test-consumers.sh` from the matching release source and prepared distribution. Public Go and Maven Central reads need no registry credentials. This check is separate from deployment.
 
