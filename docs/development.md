@@ -69,6 +69,6 @@ Handwritten public methods need purpose, contract and concrete usage (platform c
 
 ## CI runtime
 
-Workflows share `.github/actions/setup-build`. Actions use the latest stable releases verified at update time, pinned by commit; their JavaScript runtime is Node 24. Dependabot checks for action updates daily. Hosted jobs use `ubuntu-latest` and current stable Go; Android retains its compatible JDK 17 line with the newest patch, project Gradle wrapper and SDK/build-tools versions.
+Workflows share `.github/actions/setup-build`. Actions use the latest stable releases verified at update time, pinned by commit; their JavaScript runtime is Node 24. Dependabot checks for action updates monthly. Hosted jobs use `ubuntu-latest` and current stable Go; Android retains its compatible JDK 17 line with the newest patch, project Gradle wrapper and SDK/build-tools versions.
 
 Go/schema checks, Android integration and package/release checks run concurrently. The required **SDK tests** check succeeds only after every group passes; **Documentation build** remains separately required. Go/Gradle dependency caches are reused, duplicate generation/schema steps are removed, and each HTTP/HTTPS fixture reruns only the test task while retaining compiled dependencies. PRs build the site without uploading a deployment artifact. Merge deployment builds/signs/publishes without tests.
