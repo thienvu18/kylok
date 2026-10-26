@@ -11,7 +11,7 @@ From a new Go module, substitute the absolute distribution path:
 ```sh
 GOWORK=off GOPROXY=file:///absolute/path/to/release/go-proxy,https://proxy.golang.org \
   GONOSUMDB=github.com/thienvu18/kylok/go \
-  go get github.com/thienvu18/kylok/go@v0.1.0-dev
+  go get github.com/thienvu18/kylok/go@v0.1.0-dev.40316176224
 ```
 
 The checksum-database exception is for unpublished local snapshots; use normal module verification for published versions.
@@ -35,7 +35,7 @@ Defaults are durable SQLite/filesystem. Override `Options.Store` / `Artifacts` w
 
 ## Android host
 
-Public Android packages use Maven Central: configure `mavenCentral()` and select the version listed in GitHub Releases. Local Maven coordinates are `io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev`. Point a Maven repository at the extracted `kylok-maven.zip` or `out/release/maven`, then declare:
+Public Android packages use Maven Central: configure `mavenCentral()` and select the version listed in GitHub Releases. Local Maven coordinates are `io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev.40316176224`. Point a Maven repository at the extracted `kylok-maven.zip` or `out/release/maven`, then declare:
 
 ```kotlin
 // In the host's dependency repository configuration:
@@ -45,7 +45,7 @@ repositories {
     maven { url = uri("/absolute/path/to/release/maven") }
 }
 // In the host Android module:
-implementation("io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev")
+implementation("io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev.40316176224")
 ```
 
 Use min SDK 33, compile/target 37, JDK 17 and a compatible Kotlin 2.2 compiler. Maven metadata supplies transitive dependencies; copying only an AAR omits that information. The AAR contributes provisioning/admin/install/lifecycle components and consumer rules for Room/WorkManager. The host owns application ID, signing, HTTP permission/TLS trust and backup policy; preserve the SDK's data-extraction exclusions. It becomes Device Owner only through Android provisioning.

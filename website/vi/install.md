@@ -1,6 +1,6 @@
 # Cài đặt và tích hợp
 
-Kylok gồm hai SDK có phiên bản độc lập. Bản phát triển hiện tại là Go `0.1.0-dev` và Android `0.1.0-dev`, dùng giao thức 1. Ghép hai SDK từ cùng một phiên bản mã nguồn; số giao thức giống nhau không bảo đảm tương thích giữa các bản phát triển.
+Kylok gồm hai SDK có phiên bản độc lập. Bản phát triển hiện tại là Go `0.1.0-dev.40316176224` và Android `0.1.0-dev.40316176224`, dùng giao thức 1. Ghép hai SDK từ cùng một phiên bản mã nguồn; số giao thức giống nhau không bảo đảm tương thích giữa các bản phát triển.
 
 ## Lấy gói SDK
 
@@ -22,7 +22,7 @@ Từ một module mới, thay đường dẫn tuyệt đối đến gói đã gi
 ```sh
 GOWORK=off GOPROXY=file:///absolute/path/to/release/go-proxy,https://proxy.golang.org \
   GONOSUMDB=github.com/thienvu18/kylok/go \
-  go get github.com/thienvu18/kylok/go@v0.1.0-dev
+  go get github.com/thienvu18/kylok/go@v0.1.0-dev.40316176224
 ```
 
 Ngoại lệ cơ sở dữ liệu checksum chỉ dùng cho bản cục bộ chưa phát hành. Bản công khai dùng xác minh module thông thường.
@@ -54,7 +54,7 @@ repositories {
     maven { url = uri("/absolute/path/to/release/maven") }
 }
 // Module Android của ứng dụng chủ:
-implementation("io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev")
+implementation("io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev.40316176224")
 ```
 
 Dùng JDK 17, min SDK 33, compile/target SDK 37 và trình biên dịch Kotlin 2.2 tương thích. Ứng dụng chủ sở hữu application ID, khóa ký, quyền HTTP/cấu hình tin cậy TLS và chính sách sao lưu. Giữ các thành phần provisioning và quy tắc loại trừ dữ liệu của AAR. Chỉ quy trình thiết lập Android có thể cấp Device Owner.

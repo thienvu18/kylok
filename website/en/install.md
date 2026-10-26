@@ -1,6 +1,6 @@
 # Install and integrate
 
-Kylok contains two independently versioned SDKs. Current development versions are Go `0.1.0-dev` and Android `0.1.0-dev`, using protocol 1. Pair them from the same source revision; protocol numbers alone do not promise development compatibility.
+Kylok contains two independently versioned SDKs. Current development versions are Go `0.1.0-dev.40316176224` and Android `0.1.0-dev.40316176224`, using protocol 1. Pair them from the same source revision; protocol numbers alone do not promise development compatibility.
 
 ## Obtain packages
 
@@ -22,7 +22,7 @@ From a new module, substitute the absolute distribution path:
 ```sh
 GOWORK=off GOPROXY=file:///absolute/path/to/release/go-proxy,https://proxy.golang.org \
   GONOSUMDB=github.com/thienvu18/kylok/go \
-  go get github.com/thienvu18/kylok/go@v0.1.0-dev
+  go get github.com/thienvu18/kylok/go@v0.1.0-dev.40316176224
 ```
 
 The checksum-database exception is only for unpublished local snapshots. Published versions use normal module verification.
@@ -54,7 +54,7 @@ repositories {
     maven { url = uri("/absolute/path/to/release/maven") }
 }
 // Host Android module:
-implementation("io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev")
+implementation("io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev.40316176224")
 ```
 
 Use JDK 17, min SDK 33, compile/target SDK 37 and a compatible Kotlin 2.2 compiler. The host owns application ID, signing, cleartext permission/TLS trust and backup policy. Preserve the AAR's merged provisioning components and data-extraction exclusions. Only Android provisioning can grant Device Owner.
