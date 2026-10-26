@@ -1,6 +1,9 @@
 # Local configuration and secrets
 .env
 .env.*
+.tools/
+__pycache__/
+/out/
 !.env.example
 !.env.*.example
 local.properties

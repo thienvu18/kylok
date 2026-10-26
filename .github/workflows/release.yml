@@ -1,0 +1,113 @@
+name: Deploy SDKs
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Distinct merges have distinct versions; a retry keeps the same source and Portal deployment ID.
+concurrency:
+  group: deploy-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check publishing configuration
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          MAVEN_SIGNING_KEY: ${{ secrets.MAVEN_SIGNING_KEY }}
+          MAVEN_SIGNING_PASSWORD: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
+          MAVEN_SIGNING_FINGERPRINT: ${{ secrets.MAVEN_SIGNING_FINGERPRINT }}
+        run: |
+          python3 - <<'PY'
+          import os
+          required = ('MAVEN_CENTRAL_USERNAME', 'MAVEN_CENTRAL_PASSWORD', 'MAVEN_SIGNING_KEY', 'MAVEN_SIGNING_PASSWORD', 'MAVEN_SIGNING_FINGERPRINT')
+          missing = [name for name in required if not os.environ.get(name)]
+          if missing:
+              raise SystemExit('Missing GitHub Actions secrets: ' + ', '.join(missing))
+          PY
+      - id: source
+        name: Prepare immutable per-merge source and versions
+        run: python3 scripts/release-source.py prepare --output "$GITHUB_OUTPUT"
+      - id: artifacts
+        name: Create draft or restore the prepared release
+        run: python3 scripts/release-source.py restore --output "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go/go.mod
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        if: steps.artifacts.outputs.build == 'true'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        if: steps.artifacts.outputs.build == 'true'
+      - if: steps.artifacts.outputs.build == 'true'
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0'
+      - uses: gradle/actions/setup-gradle@4c125117fe7c5aed11272ec4213f602f012f89f2 # v5
+        if: steps.artifacts.outputs.build == 'true'
+      - name: Build SDK packages without running tests
+        if: steps.artifacts.outputs.build == 'true'
+        run: |
+          cd go
+          GOWORK=off go build ./...
+          cd ..
+          ./android/gradlew -p android :kylok-dpc:publishReleasePublicationToDistributionRepository
+          python3 scripts/package-release.py --require-clean
+          python3 scripts/check-distribution.py out/release
+          python3 scripts/release-assets.py out/release
+      - name: Sign the Central bundle
+        if: steps.artifacts.outputs.build == 'true'
+        env:
+          MAVEN_SIGNING_KEY: ${{ secrets.MAVEN_SIGNING_KEY }}
+          MAVEN_SIGNING_PASSWORD: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
+          MAVEN_SIGNING_FINGERPRINT: ${{ secrets.MAVEN_SIGNING_FINGERPRINT }}
+        run: python3 scripts/central.py bundle
+      - name: Preserve artifacts before remote publication
+        if: steps.artifacts.outputs.build == 'true'
+        env:
+          RELEASE_TAG: ${{ steps.source.outputs.tag }}
+        run: |
+          gh release upload "$RELEASE_TAG" out/release-assets/* --clobber
+          gh release upload "$RELEASE_TAG" out/central-bundle.zip --clobber
+      - name: Validate prepared distribution
+        run: |
+          python3 scripts/check-distribution.py out/release
+          python3 scripts/central.py check
+      - name: Publish or resume Maven Central deployment
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          RELEASE_TAG: ${{ steps.source.outputs.tag }}
+        run: python3 scripts/central.py publish --tag "$RELEASE_TAG"
+      - name: Publish SDK tags and index the Go module
+        env:
+          GO_VERSION: ${{ steps.source.outputs.go_version }}
+          ANDROID_VERSION: ${{ steps.source.outputs.android_version }}
+        run: |
+          python3 scripts/release-source.py tags
+          python3 scripts/validate-release.py --tag "go/v$GO_VERSION" --distribution out/release
+          python3 scripts/validate-release.py --tag "android/v$ANDROID_VERSION" --distribution out/release
+          python3 scripts/release-source.py index-go
+      - name: Publish GitHub release
+        env:
+          RELEASE_TAG: ${{ steps.source.outputs.tag }}
+        run: |
+          python3 scripts/release-assets.py out/release
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false --notes-file out/release-notes.md

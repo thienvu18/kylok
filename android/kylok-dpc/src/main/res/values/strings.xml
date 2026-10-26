@@ -1,0 +1,3 @@
+<resources>
+    <string name="kylok_lan_required">LAN permission is required for enrollment. Grant it and retry setup.</string>
+</resources>

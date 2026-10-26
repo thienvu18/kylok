@@ -1,0 +1,17 @@
+Kylok — Self-hosted Android Device Management SDK
+
+Original Kylok source code, examples, and documentation are licensed under
+the GNU Lesser General Public License, version 3 only.
+
+SPDX-License-Identifier: LGPL-3.0-only
+
+LICENSE contains the unmodified GNU LGPL version 3 text. LGPL version 3
+incorporates the GNU GPL version 3 terms; COPYING contains that companion
+text. These files together describe the selected LGPL-3.0-only license.
+
+Copyright remains with the respective contributors. Third-party material
+retains its applicable copyright and license notices. The Gradle wrapper is redistributed under Apache-2.0; its license is in
+android/gradle/wrapper/LICENSE and its scripts retain upstream notices.
+Build dependencies retain their published licenses. Google Test DPC is
+cited as a behavior reference; no Test DPC source is bundled. Kylok is an
+independent project.
