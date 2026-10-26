@@ -47,9 +47,10 @@ PY
     sleep 1
 done
 cmp "$test_apk" "$test_dir/download.apk"
+# Each fresh server fixture must execute tests again, while compiled dependencies remain reusable.
 KYLOK_INTEROP_QR="$test_dir/enrollment.json" KYLOK_INTEROP_CERT="$test_dir/tls.crt" \
     KYLOK_INTEROP_SERVER="$test_dir/server" KYLOK_INTEROP_DATA="$test_dir/data" KYLOK_INTEROP_APK="$test_apk" \
-    android/gradlew -p android :kylok-dpc:testDebugUnitTest --rerun-tasks
+    android/gradlew -p android :kylok-dpc:testDebugUnitTest --rerun
 "$test_dir/server" list -public-url "$test_origin" -apk "$test_apk" \
     -allow-debug-apk -data "$test_dir/data" -scope interop > "$test_dir/devices.json"
 python3 - "$test_dir/devices.json" <<'PY'

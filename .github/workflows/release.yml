@@ -15,14 +15,15 @@ concurrency:
 jobs:
   publish:
     name: Build and publish
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
       contents: write
     env:
+      GRADLE_OPTS: -Dorg.gradle.caching=true
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
@@ -48,23 +49,9 @@ jobs:
       - id: artifacts
         name: Create draft or restore the prepared release
         run: python3 scripts/release-source.py restore --output "$GITHUB_OUTPUT"
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+      - uses: ./.github/actions/setup-build
         with:
-          go-version-file: go/go.mod
-      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
-        if: steps.artifacts.outputs.build == 'true'
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
-        # The action defaults to the retired tools package; install only the current platform tools.
-        with:
-          packages: platform-tools
-        if: steps.artifacts.outputs.build == 'true'
-      - if: steps.artifacts.outputs.build == 'true'
-        run: sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0'
-      - uses: gradle/actions/setup-gradle@4c125117fe7c5aed11272ec4213f602f012f89f2 # v5
-        if: steps.artifacts.outputs.build == 'true'
+          android: ${{ steps.artifacts.outputs.build }}
       - name: Build SDK packages without running tests
         if: steps.artifacts.outputs.build == 'true'
         run: |

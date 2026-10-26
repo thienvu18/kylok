@@ -4,7 +4,7 @@ Go uses the public module `github.com/thienvu18/kylok/go`; Android uses Maven Ce
 
 ## PR checks and automatic deployment
 
-Protected `main` requires an up-to-date PR with **SDK tests** and **Documentation build** passing, including for administrators. Force pushes and deletion are blocked. PRs run `make verify`, generation/schema/repository checks and the documentation build without publishing secrets.
+Protected `main` requires an up-to-date PR with **SDK tests** and **Documentation build** passing, including for administrators. Force pushes and deletion are blocked. PRs run all verification suites in parallel, generation/schema/repository checks and the documentation build without publishing secrets. The required SDK check rejects any failed, cancelled or skipped suite.
 
 Every merge into `main` starts `Deploy SDKs`. Deployment builds and signs packages without running tests. Maven Central still performs its own package validation. Each run appends its unique GitHub run ID to the version bases in `go/VERSION` and `android/VERSION`; for example, `0.1.0-dev` becomes `0.1.0-dev.123`. A base without a prerelease suffix becomes `X.Y.Z-dev.RUN_ID`. Rerunning a workflow retains its version.
 

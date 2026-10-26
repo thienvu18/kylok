@@ -38,7 +38,7 @@ python3 scripts/check-repository.py
 
 Interop verifies a real signed APK, HTTP2 gRPC, SQLite, downloads, agent checkpoints, policy assignment/readback and release. Installer/policy OS effects are simulated; HTTPS uses a test-only trusted localhost certificate. It uses fresh private fixtures and cleans up its own processes/data. Without fixture variables, only the network interop test skips during `make test-android`; both full fixtures execute it.
 
-Go is generated into `go/gen/`; Gradle generates Java Lite/stubs for Kotlin into build output. Do not edit generated files. PR CI invokes these targets without publication. A merge into protected `main` runs the separate build/sign/publish workflow without tests; hosted execution is separate evidence.
+Go is generated into `go/gen/`; Gradle generates Java Lite/stubs for Kotlin into build output. Do not edit generated files. PR CI runs the same verification coverage in parallel Go/schema, Android/transport and package-consumer groups, without publication. A merge into protected `main` runs the separate build/sign/publish workflow without tests; hosted execution is separate evidence.
 
 ## Build outputs and host APIs
 
@@ -66,3 +66,9 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory out/site
 Open `http://127.0.0.1:8000`. Authored guides live in `website/en/` and `website/vi/`; update both languages. The build extracts Go signatures/comments through its AST, runs pinned Dokka 2.2.0 for Android KDoc, and assembles navigation, language switching, search and API references under `out/site`. Markdown is pinned in `website/requirements.txt`. Generated output is ignored; do not edit it. `make verify` audits method documentation without needing site-renderer dependencies. `make docs` also checks translated pages and local site links.
 
 Handwritten public methods need purpose, contract and concrete usage (platform callbacks explain their invocation). Internal/private methods need purpose comments. Explain non-obvious protocol values, limits and checkpoint/effect ordering; comments describe behavior rather than milestone labels. Generated/third-party source is excluded. The documentation workflow builds PRs and deploys `main` through GitHub Pages once the repository setting is enabled; it does not publish SDK packages.
+
+## CI runtime
+
+Workflows share `.github/actions/setup-build`. Actions use the latest stable releases verified at update time, pinned by commit; their JavaScript runtime is Node 24. Dependabot checks for action updates daily. Hosted jobs use `ubuntu-latest` and current stable Go; Android retains its compatible JDK 17 line with the newest patch, project Gradle wrapper and SDK/build-tools versions.
+
+Go/schema checks, Android integration and package/release checks run concurrently. The required **SDK tests** check succeeds only after every group passes; **Documentation build** remains separately required. Go/Gradle dependency caches are reused, duplicate generation/schema steps are removed, and each HTTP/HTTPS fixture reruns only the test task while retaining compiled dependencies. PRs build the site without uploading a deployment artifact. Merge deployment builds/signs/publishes without tests.
