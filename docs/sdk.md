@@ -1,17 +1,23 @@
 # SDK integration
 
-Both SDKs are experimental; [GitHub Releases](https://github.com/thienvu18/kylok/releases) lists available public versions. `make distribution test-consumers` produces and tests local packages; [release instructions](releases.md) describe publication. Go and Android have independent `VERSION` files. Pair development builds from the same source revision; protocol number 1 alone does not guarantee compatibility. APIs/data may change before v1.
+Both SDKs are in active development; [GitHub Releases](https://github.com/thienvu18/kylok/releases) lists available public versions. `make distribution test-consumers` produces and tests local packages; [release instructions](releases.md) describe publication. Go and Android have independent `VERSION` files. Build paired SDKs from the same source revision.
 
 ## Go host
 
-Module: `github.com/thienvu18/kylok/go`; current package version is in `go/VERSION`. After publication, use its `go/vX.Y.Z` repository tag through normal Go module resolution. For local artifact verification use the generated `out/release/go-proxy` as a file proxy, without a workspace or `replace` directive.
+Module: `github.com/thienvu18/kylok/go`; current package version is in `go/VERSION`. For published packages, use the release's `go/vX.Y.Z` repository tag through normal Go module resolution. For local artifact verification use the generated `out/release/go-proxy` as a file proxy, without a workspace or `replace` directive.
 
-From a new Go module, substitute the absolute distribution path:
+Install the public Go package from a new Go module:
+
+```sh
+go get github.com/thienvu18/kylok/go@v0.1.0-dev.40316176224
+```
+
+For a local source distribution, substitute the absolute distribution path:
 
 ```sh
 GOWORK=off GOPROXY=file:///absolute/path/to/release/go-proxy,https://proxy.golang.org \
   GONOSUMDB=github.com/thienvu18/kylok/go \
-  go get github.com/thienvu18/kylok/go@v0.1.0-dev
+  go get github.com/thienvu18/kylok/go@v0.2.0-dev
 ```
 
 The checksum-database exception is for unpublished local snapshots; use normal module verification for published versions.
@@ -31,11 +37,11 @@ Android uses gRPC over HTTP/2. For an HTTP listener, set `http.Server.Protocols`
 
 Defaults are durable SQLite/filesystem. Override `Options.Store` / `Artifacts` with `ports.StateStore` / `ArtifactStore`; hosts close supplied providers. Methods must be concurrent/context-safe and preserve atomicity, authentication, scope isolation, retry binding, idempotency and immutable content. Run `portstest.State`, `Operations` and `Policies`, plus backend crash/durability tests. `Clock` is injectable. Apply additional business validation before SDK calls, never by weakening adapter checks.
 
-`Options.Events` optionally receives sanitized committed device/enrollment/sync/app-assignment/policy/revocation identifiers. Delivery uses one worker and a bounded queue; the callback must honor its context (`EventTimeout`: default 1s, range 1ms–30s). Errors/panics do not change results. Events can drop, duplicate on replay or be lost on shutdown; deduplicate by event ID and use a transactional custom-store outbox for durable audit/business delivery. Hosts own the sink; the SDK cancels its worker on `Close` and bounds the wait even for a faulty sink.
+`Options.Events` optionally receives sanitized committed device/enrollment/sync/app-assignment/policy/revocation identifiers. Delivery uses one worker and a bounded queue; the callback must honor its context (`EventTimeout`: default 1s, range 1ms–30s). Errors/panics do not change results. Events can drop, duplicate on replay or be lost on shutdown; deduplicate by event ID and use `ListChanges`/`ReadProjection` for durable projection recovery and export permanent audit data into host-owned storage before retention expires. Hosts own the sink; the SDK cancels its worker on `Close` and bounds the wait even for a faulty sink.
 
 ## Android host
 
-Public Android packages use Maven Central: configure `mavenCentral()` and select the version listed in GitHub Releases. Local Maven coordinates are `io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev`. Point a Maven repository at the extracted `kylok-maven.zip` or `out/release/maven`, then declare:
+Public Android packages use Maven Central: configure `mavenCentral()`; the currently available public coordinate is `io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev.40316176224`. Local development coordinates are `io.github.thienvu18.kylok:kylok-dpc:0.2.0-dev`. Point a Maven repository at the extracted `kylok-maven.zip` or `out/release/maven`, then declare:
 
 ```kotlin
 // In the host's dependency repository configuration:
@@ -45,7 +51,7 @@ repositories {
     maven { url = uri("/absolute/path/to/release/maven") }
 }
 // In the host Android module:
-implementation("io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev")
+implementation("io.github.thienvu18.kylok:kylok-dpc:0.2.0-dev")
 ```
 
 Use min SDK 33, compile/target 37, JDK 17 and a compatible Kotlin 2.2 compiler. Maven metadata supplies transitive dependencies; copying only an AAR omits that information. The AAR contributes provisioning/admin/install/lifecycle components and consumer rules for Room/WorkManager. The host owns application ID, signing, HTTP permission/TLS trust and backup policy; preserve the SDK's data-extraction exclusions. It becomes Device Owner only through Android provisioning.
@@ -57,3 +63,5 @@ The independent hosts in `tests/consumers/` demonstrate package-only integration
 Snapshots include the enrolled endpoint, last authenticated sync, desired/observed app versions, per-rule outcomes and durable install progress. Old policy observations become pending after a desired revision change. Confirmation intents, credentials, tokens and keys are excluded. The example dashboard consumes these public values. Generate signatures/KDoc and usage reference pages with [the documentation build](development.md#documentation).
 
 The supported host surface is the Go facade/`ports`/`provisioning` contracts and Android `Kylok`, status/listener models and merged provisioning components. Generated protocol and implementation/storage classes are not general extension points. Custom business authorization/policy validation belongs before Go facade calls; arbitrary privileged Android policy plugins are not provided.
+
+Current source provides [host integration](host-integration.md): scoped point/domain-page reads, opaque enrollment correlation, optional PostgreSQL, readiness and durable change/projection APIs. [Android configuration](managed-configuration.md) documents `HostOptions` and typed managed app restrictions. Custom providers implement management and change/projection contracts; run `portstest.Management` and `portstest.Changes` with the other conformance checks.

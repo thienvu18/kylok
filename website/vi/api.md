@@ -1,31 +1,33 @@
 # Tham chiếu API
 
-Tài liệu API được tự sinh từ chữ ký hiện tại cùng chú thích mục đích/cách dùng trong nguồn:
+Tra cứu API để biết dịch vụ Go và ứng dụng Android của bạn có thể gọi những thao tác nào:
 
-- [Go facade, hợp đồng lưu trữ, adapter và provisioning](../api/go.html)
-- [API host Android và thành phần nền tảng, sinh bằng Dokka](../api/android/index.html)
+- [SDK máy chủ Go](../api/go.html)
+- [SDK Android và trạng thái thiết bị](../api/android/index.html)
 
-Chữ ký và chú thích nguồn là tham chiếu kỹ thuật dùng chung. Bắt đầu bằng [hướng dẫn tích hợp](install.html) để hiểu vòng đời host và cách dùng có thể chạy. Lớp triển khai/giao thức tự sinh không phải hợp đồng plugin tổng quát.
+Bắt đầu từ [hướng dẫn tích hợp](install.html) nếu bạn đang đưa Kylok vào sản phẩm: trang đó chỉ cách khai báo SDK, cấu hình ứng dụng chủ và chạy thử một luồng hoàn chỉnh.
 
-## Thao tác Go thường dùng
-
-| Mục tiêu | API |
-| --- | --- |
-| Khởi tạo/đóng | `New`, `Close`, `Handler`, `BootstrapHandler`, `Version` |
-| Provisioning | `CreateEnrollment`, `QR`, `QRWithOrigins` |
-| Danh bạ | `ListDevices`, `RevokeDevice` |
-| Ứng dụng/cập nhật | `RegisterApplication`, `ListApplications`, `AssignApplication`, `ListOperations`, `RemoveApplication` |
-| Chính sách | `SetPolicy`, `GetPolicy` |
-| Mở rộng | `ports.StateStore`, `ArtifactStore`, `portstest`, `Options.Events`, `Clock` |
-
-## Thao tác Android thường dùng
+## Quản lý thiết bị từ dịch vụ Go
 
 | Mục tiêu | API |
 | --- | --- |
-| Yêu cầu đối chiếu/đồng bộ | `Kylok.retry(context)` |
-| Đọc trạng thái cục bộ hiện tại | `Kylok.snapshot(context) { AgentStatus -> … }` |
-| Theo dõi thay đổi | `Kylok.observe(StatusListener { … })`; đóng registration theo vòng đời |
-| Xác nhận cài đặt OS | `Kylok.confirmPendingInstall(context)` từ thao tác người dùng |
-| Chẩn đoán | `Kylok.status`, `sdkVersion`, `protocolVersion` |
+| Khởi động và dừng dịch vụ | `New`, `Close`, `Handler`, `BootstrapHandler`, `Version` |
+| Đăng ký thiết bị | `CreateEnrollment`, `QR`, `QRWithOrigins` |
+| Xem hoặc thu hồi thiết bị | `ListDevices`, `RevokeDevice` |
+| Phân phối và cập nhật ứng dụng | `RegisterApplication`, `ListApplications`, `AssignApplication`, `ListOperations`, `RemoveApplication` |
+| Cấu hình và xem chính sách | `SetPolicy`, `GetPolicy` |
+| Dùng bộ lưu trữ hoặc sự kiện riêng | `ports.StateStore`, `ArtifactStore`, `Options.Events`, `Clock` |
 
-`AgentStatus` tách yêu cầu/quan sát ứng dụng, kết quả chính sách và tiến độ cài đặt cục bộ đã lưu. Không trả về credential, nội dung QR hoặc khóa riêng.
+## Xem trạng thái thiết bị trong ứng dụng Android
+
+| Mục tiêu | API |
+| --- | --- |
+| Lên lịch đồng bộ | `Kylok.retry(context)` |
+| Đọc trạng thái thiết bị mới nhất | `Kylok.snapshot(context) { AgentStatus -> … }` |
+| Nhận cập nhật trạng thái | `Kylok.observe(StatusListener { … })`; đóng đăng ký khi ứng dụng kết thúc |
+| Mở xác nhận cài đặt của Android | Gọi `Kylok.confirmPendingInstall(context)` sau thao tác của người dùng |
+| Hiển thị thông tin chẩn đoán | `Kylok.status`, `sdkVersion`, `protocolVersion` |
+
+`AgentStatus` cho biết ứng dụng đang yêu cầu phiên bản nào và thiết bị đã cài phiên bản nào, kết quả từng quy tắc chính sách cùng tiến độ cài đặt còn dang dở. Trạng thái này không chứa token đăng ký, thông tin xác thực hay khóa riêng.
+
+Mã nguồn hiện tại bổ sung API đọc/liên kết theo phạm vi, PostgreSQL, luồng thay đổi bền vững và `HostOptions`/cấu hình ứng dụng theo kiểu. Xem [tích hợp host](https://github.com/thienvu18/kylok/blob/main/docs/host-integration.md) và [cấu hình Android](https://github.com/thienvu18/kylok/blob/main/docs/managed-configuration.md); tham chiếu sinh tự động phản ánh mã nguồn hiện tại, mới hơn cặp SDK đầu tiên.

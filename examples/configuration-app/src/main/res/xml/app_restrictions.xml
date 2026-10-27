@@ -1,0 +1,4 @@
+<restrictions xmlns:android="http://schemas.android.com/apk/res/android">
+    <restriction android:key="display_name" android:title="@string/title_setting" android:restrictionType="string" android:defaultValue="@string/default_title" />
+    <restriction android:key="allow_refresh" android:title="@string/refresh_setting" android:restrictionType="bool" android:defaultValue="true" />
+</restrictions>

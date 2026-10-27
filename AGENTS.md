@@ -6,14 +6,14 @@ For structural codebase exploration, use the installed `codebase-memory` skill.
 
 ## Scope and current state
 
-Kylok is an experimental Go/Android device management SDK. Work through M6 covers enrollment, durable sync, APK lifecycle, policies/kiosk, package consumers and release tooling. Remote publication and physical release gates remain separate; current evidence is in `docs/compatibility.md`. Keep claims limited to recorded evidence. Do not expand feature scope without a task.
+Kylok is an experimental Go/Android device management SDK. Current source includes device enrollment and management, host contracts, PostgreSQL, durable changes and Android configuration. `ROADMAP.md` and `docs/implementation-plan.md` track planned work and qualification; `docs/compatibility.md` records current software/device evidence; `docs/release-readiness.md` gates stable release qualification. Keep claims limited to recorded evidence. Do not expand feature scope without a task.
 
-Development APIs, schemas, and local data formats may change without backward compatibility. Do not add legacy adapters or migrations solely for earlier development builds. Preserve `design.md` as the original draft; current decisions live in `docs/architecture.md` and `docs/enrollment-protocol.md`.
+Development APIs, schemas and local formats may evolve while the project is in development. Build paired SDKs from the same source revision and use fresh development data when a local format changes. Preserve `design.md`; current decisions live in `docs/architecture.md` and `docs/enrollment-protocol.md`.
 
 ## Boundaries
 
 - One Go module in `go/`, one Android AAR in `android/kylok-dpc/`, shared schema in `proto/kylok/v1/`.
-- Examples consume public APIs only. SDKs must not depend on examples, fDCMS, or a business framework.
+- Examples consume public APIs only. SDKs must not depend on examples, consumer products, or a business framework.
 - HTTP/HTTPS and IP/domain origins are normal configurations. The URL selects transport; HTTPS verifies certificates/hostnames without automatic downgrade.
 - Hosts own business authorization, server lifecycle, application ID and signing. The AAR cannot grant itself Device Owner.
 - Preserve authentication, scope isolation, atomic token consumption, retry binding, APK integrity, ownership checks, and operation idempotency across adapters.

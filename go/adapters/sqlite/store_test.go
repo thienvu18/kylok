@@ -91,4 +91,7 @@ func TestConformance(t *testing.T) {
 	portstest.State(t, factory)
 	portstest.Operations(t, factory)
 	portstest.Policies(t, factory)
+	portstest.ManagedConfigurations(t, factory)
+	portstest.Management(t, factory)
+	portstest.Changes(t, factory)
 }

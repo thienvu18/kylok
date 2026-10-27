@@ -74,7 +74,7 @@ class EnrollmentInteropTest {
             val directory = java.nio.file.Files.createTempDirectory("kylok-jvm-install").toFile()
             val policyFile = File(directory, "policy.json")
             val packageName = artifact.getString("package_name")
-            policyFile.writeText("""{"required_packages":["$packageName"],"camera_disabled":true,"lock_task":{"packages":["$packageName"],"kiosk_package":"$packageName"}}""")
+            policyFile.writeText("""{"required_packages":["$packageName"],"camera_disabled":true,"managed_configurations":[{"package_name":"$packageName","values":{"entries":[{"key":"display_name","value":{"string":"LAN configuration"}},{"key":"allow_refresh","value":{"boolean":false}},{"key":"limit","value":{"integer":7}},{"key":"tags","value":{"strings":["a","b"]}},{"key":"nested","value":{"bundle":{"entries":[{"key":"child","value":{"string":"value"}}]}}},{"key":"groups","value":{"bundles":[{"entries":[{"key":"enabled","value":{"boolean":true}}]}]}}]}}],"lock_task":{"packages":["$packageName"],"kiosk_package":"$packageName"}}""")
             command("set-policy", "-device", recovered.device.id, "-request-key", "jvm-policy", "-policy", policyFile.path)
             val storage = MemoryState(JSONObject().put("device_id", recovered.device.id).put("scope_id", "interop").put("sequence", 1))
             val checkpoints = SyncCheckpoint(storage)
@@ -109,6 +109,7 @@ class EnrollmentInteropTest {
                 override fun capture(setting: PolicySetting) = observe(setting)
                 override fun observe(setting: PolicySetting) = policyValues[setting.id] ?: when (setting.kind) {
                     PolicyKind.LOCK_TASK -> lockTaskValue(emptyList(), "")
+                    PolicyKind.MANAGED_CONFIGURATION -> ConfigurationValues.journal(ConfigurationBundle.getDefaultInstance())
                     else -> "false"
                 }
                 override fun apply(setting: PolicySetting) { policyValues[setting.id] = setting.value }
@@ -128,7 +129,8 @@ class EnrollmentInteropTest {
                 assertEquals(ComplianceState.COMPLIANCE_STATE_APPLIED, completed.complianceList.single().state)
                 assertEquals(0, completed.operationsCount)
                 assertEquals(1, commits)
-                assertEquals(4, completed.policyComplianceCount)
+                assertEquals(5, completed.policyComplianceCount)
+                assertTrue(completed.policyComplianceList.single { it.ruleId.startsWith("configuration:") }.observedValue.startsWith("sha256:"))
                 assertTrue(completed.policyComplianceList.all { it.state == ComplianceState.COMPLIANCE_STATE_APPLIED })
                 val operations = org.json.JSONArray(command("operations", "-device", recovered.device.id))
                 assertEquals("SUCCEEDED", operations.getJSONObject(0).getString("state"))
@@ -144,6 +146,7 @@ class EnrollmentInteropTest {
                 assertEquals("cleanup", released.policyComplianceList.single().ruleId)
                 assertEquals(ComplianceState.COMPLIANCE_STATE_APPLIED, released.policyComplianceList.single().state)
                 assertEquals("false", policyValues["camera"])
+                assertEquals(ConfigurationValues.journal(ConfigurationBundle.getDefaultInstance()), policyValues["configuration:$packageName"])
                 assertEquals(lockTaskValue(emptyList(), ""), policyValues["lock_task"])
             } finally { directory.deleteRecursively() }
         }

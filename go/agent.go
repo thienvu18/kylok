@@ -223,7 +223,7 @@ func (a *agentService) Sync(ctx context.Context, r *connect.Request[kylokv1.Sync
 	}
 	input := ports.SyncInput{DeviceID: r.Msg.DeviceId, CredentialHash: hash(strings.TrimPrefix(header, "Bearer ")), Inventory: inventory, Now: a.sdk.clock().UTC(), Sequence: r.Msg.Sequence, ReportedRevision: r.Msg.ReportedRevision}
 	if report := r.Msg.PolicyReport; report != nil {
-		if report.Revision == 0 || report.Revision > report.SnapshotRevision || report.SnapshotRevision > r.Msg.ReportedRevision || len(report.Results) > 144 {
+		if report.Revision == 0 || report.Revision > report.SnapshotRevision || report.SnapshotRevision > r.Msg.ReportedRevision || len(report.Results) > ports.MaximumPolicyResults {
 			return nil, rpcError(connect.CodeInvalidArgument, kylokv1.ErrorReason_ERROR_REASON_INVALID_INPUT, false)
 		}
 		input.PolicyReport = &ports.PolicyReport{Revision: report.Revision, SnapshotRevision: report.SnapshotRevision}

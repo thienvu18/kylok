@@ -1,8 +1,8 @@
 # Agent protocol
 
-The current contract is [agent.proto](../proto/kylok/v1/agent.proto), shared by Go and Kotlin. Development changes may break previous builds. HTTP/HTTPS and IP/domain origins are supported; the configured scheme selects transport without automatic downgrade. HTTP leaves tokens and credentials unencrypted in transit.
+The current contract is [agent.proto](../proto/kylok/v1/agent.proto), shared by Go and Kotlin. Build both SDKs from the same source revision. HTTP/HTTPS and IP/domain origins are supported; the configured scheme selects transport without automatic downgrade. HTTP leaves tokens and credentials unencrypted in transit.
 
-Protocol version is 1. Development Go/Android packages must be paired from one source revision; neither matching protocol numbers nor package version ordering promises compatibility with earlier development schemas. [Release manifests](releases.md) record the exact pair, source identity and automated/physical evidence scope. Host event/status observers do not participate in authentication, protocol acknowledgements or compliance decisions.
+Protocol version is 1. [Release manifests](releases.md) record the exact Go/Android package pair, source identity and automated/physical evidence scope. Host event/status observers do not participate in authentication, protocol acknowledgements or compliance decisions.
 
 ## Enrollment
 
@@ -39,8 +39,10 @@ Canonical rule IDs are `required:<package>`, `camera`, `screen_capture`, `maximu
 ## Limits and errors
 
 - Single/universal APKs up to 64 MiB; split execution is unsupported.
-- Up to 64 desired/required apps, 64 permission rules, 144 policy results, 128 installed inventory entries, 64 operation reports and 1 MiB per sync. Policy observed values are at most 20000 bytes.
+- Up to 64 desired/required apps, 64 permission rules, 201 policy results, 128 installed inventory entries, 64 operation reports and 1 MiB per sync. Policy observed values are at most 20000 bytes.
 - Scope/management keys: 1–128 ASCII letters/digits/underscore/dot/hyphen, beginning with a letter/digit.
 - `UNAVAILABLE`/deadline errors retry; invalid inputs, consumed/expired tokens, conflicting/stale sync and revoked credentials require diagnosis. `ErrorDetail` carries reason/retryability without exposing backend errors or secrets.
 
 Revocation rejects sync, downloads and enrollment recovery; it does not reset Android. No in-place credential rotation is implemented. New identity requires authorized fresh provisioning. Inventory/ownership are authenticated self-reports, not hardware attestation.
+
+Managed app configuration uses typed protobuf oneofs for Android restriction bundles. Configuration rule observations carry a normalized `sha256:` digest, never raw bundle content. Required package/version/signer checks gate enforcement. See [configuration semantics](managed-configuration.md) for value/size limits and application acknowledgement boundaries. Enrollment correlation and management cursors/change records are host-only APIs and never device authentication credentials.

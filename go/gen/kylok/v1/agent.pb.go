@@ -985,14 +985,15 @@ func (x *SyncResponse) GetPolicyCompliance() []*PolicyResult {
 // Full replacement. Omitted settings release previously managed settings to
 // their captured baseline; an empty document releases all Kylok policy controls.
 type Policy struct {
-	state                   protoimpl.MessageState `protogen:"open.v1"`
-	RequiredPackages        []string               `protobuf:"bytes,1,rep,name=required_packages,json=requiredPackages,proto3" json:"required_packages,omitempty"`
-	LockTask                *LockTaskPolicy        `protobuf:"bytes,2,opt,name=lock_task,json=lockTask,proto3" json:"lock_task,omitempty"`
-	CameraDisabled          *bool                  `protobuf:"varint,3,opt,name=camera_disabled,json=cameraDisabled,proto3,oneof" json:"camera_disabled,omitempty"`
-	ScreenCaptureDisabled   *bool                  `protobuf:"varint,4,opt,name=screen_capture_disabled,json=screenCaptureDisabled,proto3,oneof" json:"screen_capture_disabled,omitempty"`
-	Restrictions            []*RestrictionRule     `protobuf:"bytes,5,rep,name=restrictions,proto3" json:"restrictions,omitempty"`
-	Permissions             []*PermissionRule      `protobuf:"bytes,6,rep,name=permissions,proto3" json:"permissions,omitempty"`
-	MaximumTimeToLockMillis *int64                 `protobuf:"varint,7,opt,name=maximum_time_to_lock_millis,json=maximumTimeToLockMillis,proto3,oneof" json:"maximum_time_to_lock_millis,omitempty"`
+	state                   protoimpl.MessageState  `protogen:"open.v1"`
+	RequiredPackages        []string                `protobuf:"bytes,1,rep,name=required_packages,json=requiredPackages,proto3" json:"required_packages,omitempty"`
+	LockTask                *LockTaskPolicy         `protobuf:"bytes,2,opt,name=lock_task,json=lockTask,proto3" json:"lock_task,omitempty"`
+	CameraDisabled          *bool                   `protobuf:"varint,3,opt,name=camera_disabled,json=cameraDisabled,proto3,oneof" json:"camera_disabled,omitempty"`
+	ScreenCaptureDisabled   *bool                   `protobuf:"varint,4,opt,name=screen_capture_disabled,json=screenCaptureDisabled,proto3,oneof" json:"screen_capture_disabled,omitempty"`
+	Restrictions            []*RestrictionRule      `protobuf:"bytes,5,rep,name=restrictions,proto3" json:"restrictions,omitempty"`
+	Permissions             []*PermissionRule       `protobuf:"bytes,6,rep,name=permissions,proto3" json:"permissions,omitempty"`
+	MaximumTimeToLockMillis *int64                  `protobuf:"varint,7,opt,name=maximum_time_to_lock_millis,json=maximumTimeToLockMillis,proto3,oneof" json:"maximum_time_to_lock_millis,omitempty"`
+	ManagedConfigurations   []*ManagedConfiguration `protobuf:"bytes,8,rep,name=managed_configurations,json=managedConfigurations,proto3" json:"managed_configurations,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -1074,6 +1075,13 @@ func (x *Policy) GetMaximumTimeToLockMillis() int64 {
 		return *x.MaximumTimeToLockMillis
 	}
 	return 0
+}
+
+func (x *Policy) GetManagedConfigurations() []*ManagedConfiguration {
+	if x != nil {
+		return x.ManagedConfigurations
+	}
+	return nil
 }
 
 type LockTaskPolicy struct {
@@ -1963,6 +1971,389 @@ func (x *ErrorDetail) GetRetryable() bool {
 	return false
 }
 
+// Typed Android application restrictions. Entries are normalized by key; no generic JSON crosses the wire.
+type ManagedConfiguration struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PackageName   string                 `protobuf:"bytes,1,opt,name=package_name,json=packageName,proto3" json:"package_name,omitempty"`
+	Values        *ConfigurationBundle   `protobuf:"bytes,2,opt,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ManagedConfiguration) Reset() {
+	*x = ManagedConfiguration{}
+	mi := &file_kylok_v1_agent_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ManagedConfiguration) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ManagedConfiguration) ProtoMessage() {}
+
+func (x *ManagedConfiguration) ProtoReflect() protoreflect.Message {
+	mi := &file_kylok_v1_agent_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ManagedConfiguration.ProtoReflect.Descriptor instead.
+func (*ManagedConfiguration) Descriptor() ([]byte, []int) {
+	return file_kylok_v1_agent_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ManagedConfiguration) GetPackageName() string {
+	if x != nil {
+		return x.PackageName
+	}
+	return ""
+}
+
+func (x *ManagedConfiguration) GetValues() *ConfigurationBundle {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+type ConfigurationBundle struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Entries       []*ConfigurationEntry  `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigurationBundle) Reset() {
+	*x = ConfigurationBundle{}
+	mi := &file_kylok_v1_agent_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigurationBundle) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigurationBundle) ProtoMessage() {}
+
+func (x *ConfigurationBundle) ProtoReflect() protoreflect.Message {
+	mi := &file_kylok_v1_agent_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigurationBundle.ProtoReflect.Descriptor instead.
+func (*ConfigurationBundle) Descriptor() ([]byte, []int) {
+	return file_kylok_v1_agent_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *ConfigurationBundle) GetEntries() []*ConfigurationEntry {
+	if x != nil {
+		return x.Entries
+	}
+	return nil
+}
+
+type ConfigurationEntry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Value         *ConfigurationValue    `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigurationEntry) Reset() {
+	*x = ConfigurationEntry{}
+	mi := &file_kylok_v1_agent_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigurationEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigurationEntry) ProtoMessage() {}
+
+func (x *ConfigurationEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_kylok_v1_agent_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigurationEntry.ProtoReflect.Descriptor instead.
+func (*ConfigurationEntry) Descriptor() ([]byte, []int) {
+	return file_kylok_v1_agent_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *ConfigurationEntry) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *ConfigurationEntry) GetValue() *ConfigurationValue {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+type ConfigurationValue struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Value:
+	//
+	//	*ConfigurationValue_BooleanValue
+	//	*ConfigurationValue_IntegerValue
+	//	*ConfigurationValue_StringValue
+	//	*ConfigurationValue_StringsValue
+	//	*ConfigurationValue_BundleValue
+	//	*ConfigurationValue_BundlesValue
+	Value         isConfigurationValue_Value `protobuf_oneof:"value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigurationValue) Reset() {
+	*x = ConfigurationValue{}
+	mi := &file_kylok_v1_agent_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigurationValue) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigurationValue) ProtoMessage() {}
+
+func (x *ConfigurationValue) ProtoReflect() protoreflect.Message {
+	mi := &file_kylok_v1_agent_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigurationValue.ProtoReflect.Descriptor instead.
+func (*ConfigurationValue) Descriptor() ([]byte, []int) {
+	return file_kylok_v1_agent_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *ConfigurationValue) GetValue() isConfigurationValue_Value {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+func (x *ConfigurationValue) GetBooleanValue() bool {
+	if x != nil {
+		if x, ok := x.Value.(*ConfigurationValue_BooleanValue); ok {
+			return x.BooleanValue
+		}
+	}
+	return false
+}
+
+func (x *ConfigurationValue) GetIntegerValue() int32 {
+	if x != nil {
+		if x, ok := x.Value.(*ConfigurationValue_IntegerValue); ok {
+			return x.IntegerValue
+		}
+	}
+	return 0
+}
+
+func (x *ConfigurationValue) GetStringValue() string {
+	if x != nil {
+		if x, ok := x.Value.(*ConfigurationValue_StringValue); ok {
+			return x.StringValue
+		}
+	}
+	return ""
+}
+
+func (x *ConfigurationValue) GetStringsValue() *ConfigurationStrings {
+	if x != nil {
+		if x, ok := x.Value.(*ConfigurationValue_StringsValue); ok {
+			return x.StringsValue
+		}
+	}
+	return nil
+}
+
+func (x *ConfigurationValue) GetBundleValue() *ConfigurationBundle {
+	if x != nil {
+		if x, ok := x.Value.(*ConfigurationValue_BundleValue); ok {
+			return x.BundleValue
+		}
+	}
+	return nil
+}
+
+func (x *ConfigurationValue) GetBundlesValue() *ConfigurationBundles {
+	if x != nil {
+		if x, ok := x.Value.(*ConfigurationValue_BundlesValue); ok {
+			return x.BundlesValue
+		}
+	}
+	return nil
+}
+
+type isConfigurationValue_Value interface {
+	isConfigurationValue_Value()
+}
+
+type ConfigurationValue_BooleanValue struct {
+	BooleanValue bool `protobuf:"varint,1,opt,name=boolean_value,json=booleanValue,proto3,oneof"`
+}
+
+type ConfigurationValue_IntegerValue struct {
+	IntegerValue int32 `protobuf:"varint,2,opt,name=integer_value,json=integerValue,proto3,oneof"`
+}
+
+type ConfigurationValue_StringValue struct {
+	StringValue string `protobuf:"bytes,3,opt,name=string_value,json=stringValue,proto3,oneof"`
+}
+
+type ConfigurationValue_StringsValue struct {
+	StringsValue *ConfigurationStrings `protobuf:"bytes,4,opt,name=strings_value,json=stringsValue,proto3,oneof"`
+}
+
+type ConfigurationValue_BundleValue struct {
+	BundleValue *ConfigurationBundle `protobuf:"bytes,5,opt,name=bundle_value,json=bundleValue,proto3,oneof"`
+}
+
+type ConfigurationValue_BundlesValue struct {
+	BundlesValue *ConfigurationBundles `protobuf:"bytes,6,opt,name=bundles_value,json=bundlesValue,proto3,oneof"`
+}
+
+func (*ConfigurationValue_BooleanValue) isConfigurationValue_Value() {}
+
+func (*ConfigurationValue_IntegerValue) isConfigurationValue_Value() {}
+
+func (*ConfigurationValue_StringValue) isConfigurationValue_Value() {}
+
+func (*ConfigurationValue_StringsValue) isConfigurationValue_Value() {}
+
+func (*ConfigurationValue_BundleValue) isConfigurationValue_Value() {}
+
+func (*ConfigurationValue_BundlesValue) isConfigurationValue_Value() {}
+
+type ConfigurationStrings struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []string               `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigurationStrings) Reset() {
+	*x = ConfigurationStrings{}
+	mi := &file_kylok_v1_agent_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigurationStrings) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigurationStrings) ProtoMessage() {}
+
+func (x *ConfigurationStrings) ProtoReflect() protoreflect.Message {
+	mi := &file_kylok_v1_agent_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigurationStrings.ProtoReflect.Descriptor instead.
+func (*ConfigurationStrings) Descriptor() ([]byte, []int) {
+	return file_kylok_v1_agent_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *ConfigurationStrings) GetValues() []string {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+type ConfigurationBundles struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []*ConfigurationBundle `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigurationBundles) Reset() {
+	*x = ConfigurationBundles{}
+	mi := &file_kylok_v1_agent_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigurationBundles) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigurationBundles) ProtoMessage() {}
+
+func (x *ConfigurationBundles) ProtoReflect() protoreflect.Message {
+	mi := &file_kylok_v1_agent_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigurationBundles.ProtoReflect.Descriptor instead.
+func (*ConfigurationBundles) Descriptor() ([]byte, []int) {
+	return file_kylok_v1_agent_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *ConfigurationBundles) GetValues() []*ConfigurationBundle {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
 var File_kylok_v1_agent_proto protoreflect.FileDescriptor
 
 const file_kylok_v1_agent_proto_rawDesc = "" +
@@ -2031,7 +2422,7 @@ const file_kylok_v1_agent_proto_rawDesc = "" +
 	"compliance\x18\a \x03(\v2\x1f.kylok.v1.ApplicationComplianceR\n" +
 	"compliance\x12>\n" +
 	"\x0edesired_policy\x18\b \x01(\v2\x17.kylok.v1.DesiredPolicyR\rdesiredPolicy\x12C\n" +
-	"\x11policy_compliance\x18\t \x03(\v2\x16.kylok.v1.PolicyResultR\x10policyCompliance\"\xe5\x03\n" +
+	"\x11policy_compliance\x18\t \x03(\v2\x16.kylok.v1.PolicyResultR\x10policyCompliance\"\xbc\x04\n" +
 	"\x06Policy\x12+\n" +
 	"\x11required_packages\x18\x01 \x03(\tR\x10requiredPackages\x125\n" +
 	"\tlock_task\x18\x02 \x01(\v2\x18.kylok.v1.LockTaskPolicyR\blockTask\x12,\n" +
@@ -2039,7 +2430,8 @@ const file_kylok_v1_agent_proto_rawDesc = "" +
 	"\x17screen_capture_disabled\x18\x04 \x01(\bH\x01R\x15screenCaptureDisabled\x88\x01\x01\x12=\n" +
 	"\frestrictions\x18\x05 \x03(\v2\x19.kylok.v1.RestrictionRuleR\frestrictions\x12:\n" +
 	"\vpermissions\x18\x06 \x03(\v2\x18.kylok.v1.PermissionRuleR\vpermissions\x12A\n" +
-	"\x1bmaximum_time_to_lock_millis\x18\a \x01(\x03H\x02R\x17maximumTimeToLockMillis\x88\x01\x01B\x12\n" +
+	"\x1bmaximum_time_to_lock_millis\x18\a \x01(\x03H\x02R\x17maximumTimeToLockMillis\x88\x01\x01\x12U\n" +
+	"\x16managed_configurations\x18\b \x03(\v2\x1e.kylok.v1.ManagedConfigurationR\x15managedConfigurationsB\x12\n" +
 	"\x10_camera_disabledB\x1a\n" +
 	"\x18_screen_capture_disabledB\x1e\n" +
 	"\x1c_maximum_time_to_lock_millis\"Q\n" +
@@ -2111,7 +2503,27 @@ const file_kylok_v1_agent_proto_rawDesc = "" +
 	"\x06reason\x18\x04 \x01(\tR\x06reason\"Z\n" +
 	"\vErrorDetail\x12-\n" +
 	"\x06reason\x18\x01 \x01(\x0e2\x15.kylok.v1.ErrorReasonR\x06reason\x12\x1c\n" +
-	"\tretryable\x18\x02 \x01(\bR\tretryable*z\n" +
+	"\tretryable\x18\x02 \x01(\bR\tretryable\"p\n" +
+	"\x14ManagedConfiguration\x12!\n" +
+	"\fpackage_name\x18\x01 \x01(\tR\vpackageName\x125\n" +
+	"\x06values\x18\x02 \x01(\v2\x1d.kylok.v1.ConfigurationBundleR\x06values\"M\n" +
+	"\x13ConfigurationBundle\x126\n" +
+	"\aentries\x18\x01 \x03(\v2\x1c.kylok.v1.ConfigurationEntryR\aentries\"Z\n" +
+	"\x12ConfigurationEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x122\n" +
+	"\x05value\x18\x02 \x01(\v2\x1c.kylok.v1.ConfigurationValueR\x05value\"\xe2\x02\n" +
+	"\x12ConfigurationValue\x12%\n" +
+	"\rboolean_value\x18\x01 \x01(\bH\x00R\fbooleanValue\x12%\n" +
+	"\rinteger_value\x18\x02 \x01(\x05H\x00R\fintegerValue\x12#\n" +
+	"\fstring_value\x18\x03 \x01(\tH\x00R\vstringValue\x12E\n" +
+	"\rstrings_value\x18\x04 \x01(\v2\x1e.kylok.v1.ConfigurationStringsH\x00R\fstringsValue\x12B\n" +
+	"\fbundle_value\x18\x05 \x01(\v2\x1d.kylok.v1.ConfigurationBundleH\x00R\vbundleValue\x12E\n" +
+	"\rbundles_value\x18\x06 \x01(\v2\x1e.kylok.v1.ConfigurationBundlesH\x00R\fbundlesValueB\a\n" +
+	"\x05value\".\n" +
+	"\x14ConfigurationStrings\x12\x16\n" +
+	"\x06values\x18\x01 \x03(\tR\x06values\"M\n" +
+	"\x14ConfigurationBundles\x125\n" +
+	"\x06values\x18\x01 \x03(\v2\x1d.kylok.v1.ConfigurationBundleR\x06values*z\n" +
 	"\vDeviceState\x12\x1c\n" +
 	"\x18DEVICE_STATE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15DEVICE_STATE_ENROLLED\x10\x01\x12\x18\n" +
@@ -2169,7 +2581,7 @@ func file_kylok_v1_agent_proto_rawDescGZIP() []byte {
 }
 
 var file_kylok_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_kylok_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_kylok_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_kylok_v1_agent_proto_goTypes = []any{
 	(DeviceState)(0),              // 0: kylok.v1.DeviceState
 	(PermissionState)(0),          // 1: kylok.v1.PermissionState
@@ -2198,6 +2610,12 @@ var file_kylok_v1_agent_proto_goTypes = []any{
 	(*ReportReceipt)(nil),         // 24: kylok.v1.ReportReceipt
 	(*ApplicationCompliance)(nil), // 25: kylok.v1.ApplicationCompliance
 	(*ErrorDetail)(nil),           // 26: kylok.v1.ErrorDetail
+	(*ManagedConfiguration)(nil),  // 27: kylok.v1.ManagedConfiguration
+	(*ConfigurationBundle)(nil),   // 28: kylok.v1.ConfigurationBundle
+	(*ConfigurationEntry)(nil),    // 29: kylok.v1.ConfigurationEntry
+	(*ConfigurationValue)(nil),    // 30: kylok.v1.ConfigurationValue
+	(*ConfigurationStrings)(nil),  // 31: kylok.v1.ConfigurationStrings
+	(*ConfigurationBundles)(nil),  // 32: kylok.v1.ConfigurationBundles
 }
 var file_kylok_v1_agent_proto_depIdxs = []int32{
 	6,  // 0: kylok.v1.Inventory.applications:type_name -> kylok.v1.InstalledApplication
@@ -2219,26 +2637,34 @@ var file_kylok_v1_agent_proto_depIdxs = []int32{
 	14, // 16: kylok.v1.Policy.lock_task:type_name -> kylok.v1.LockTaskPolicy
 	15, // 17: kylok.v1.Policy.restrictions:type_name -> kylok.v1.RestrictionRule
 	16, // 18: kylok.v1.Policy.permissions:type_name -> kylok.v1.PermissionRule
-	1,  // 19: kylok.v1.PermissionRule.state:type_name -> kylok.v1.PermissionState
-	13, // 20: kylok.v1.DesiredPolicy.policy:type_name -> kylok.v1.Policy
-	19, // 21: kylok.v1.PolicyReport.results:type_name -> kylok.v1.PolicyResult
-	3,  // 22: kylok.v1.PolicyResult.state:type_name -> kylok.v1.ComplianceState
-	20, // 23: kylok.v1.DesiredApplication.artifact:type_name -> kylok.v1.Artifact
-	20, // 24: kylok.v1.Operation.artifact:type_name -> kylok.v1.Artifact
-	2,  // 25: kylok.v1.Operation.state:type_name -> kylok.v1.OperationState
-	2,  // 26: kylok.v1.OperationReport.state:type_name -> kylok.v1.OperationState
-	6,  // 27: kylok.v1.OperationReport.observed:type_name -> kylok.v1.InstalledApplication
-	3,  // 28: kylok.v1.ApplicationCompliance.state:type_name -> kylok.v1.ComplianceState
-	4,  // 29: kylok.v1.ErrorDetail.reason:type_name -> kylok.v1.ErrorReason
-	8,  // 30: kylok.v1.AgentService.Enroll:input_type -> kylok.v1.EnrollRequest
-	11, // 31: kylok.v1.AgentService.Sync:input_type -> kylok.v1.SyncRequest
-	10, // 32: kylok.v1.AgentService.Enroll:output_type -> kylok.v1.EnrollResponse
-	12, // 33: kylok.v1.AgentService.Sync:output_type -> kylok.v1.SyncResponse
-	32, // [32:34] is the sub-list for method output_type
-	30, // [30:32] is the sub-list for method input_type
-	30, // [30:30] is the sub-list for extension type_name
-	30, // [30:30] is the sub-list for extension extendee
-	0,  // [0:30] is the sub-list for field type_name
+	27, // 19: kylok.v1.Policy.managed_configurations:type_name -> kylok.v1.ManagedConfiguration
+	1,  // 20: kylok.v1.PermissionRule.state:type_name -> kylok.v1.PermissionState
+	13, // 21: kylok.v1.DesiredPolicy.policy:type_name -> kylok.v1.Policy
+	19, // 22: kylok.v1.PolicyReport.results:type_name -> kylok.v1.PolicyResult
+	3,  // 23: kylok.v1.PolicyResult.state:type_name -> kylok.v1.ComplianceState
+	20, // 24: kylok.v1.DesiredApplication.artifact:type_name -> kylok.v1.Artifact
+	20, // 25: kylok.v1.Operation.artifact:type_name -> kylok.v1.Artifact
+	2,  // 26: kylok.v1.Operation.state:type_name -> kylok.v1.OperationState
+	2,  // 27: kylok.v1.OperationReport.state:type_name -> kylok.v1.OperationState
+	6,  // 28: kylok.v1.OperationReport.observed:type_name -> kylok.v1.InstalledApplication
+	3,  // 29: kylok.v1.ApplicationCompliance.state:type_name -> kylok.v1.ComplianceState
+	4,  // 30: kylok.v1.ErrorDetail.reason:type_name -> kylok.v1.ErrorReason
+	28, // 31: kylok.v1.ManagedConfiguration.values:type_name -> kylok.v1.ConfigurationBundle
+	29, // 32: kylok.v1.ConfigurationBundle.entries:type_name -> kylok.v1.ConfigurationEntry
+	30, // 33: kylok.v1.ConfigurationEntry.value:type_name -> kylok.v1.ConfigurationValue
+	31, // 34: kylok.v1.ConfigurationValue.strings_value:type_name -> kylok.v1.ConfigurationStrings
+	28, // 35: kylok.v1.ConfigurationValue.bundle_value:type_name -> kylok.v1.ConfigurationBundle
+	32, // 36: kylok.v1.ConfigurationValue.bundles_value:type_name -> kylok.v1.ConfigurationBundles
+	28, // 37: kylok.v1.ConfigurationBundles.values:type_name -> kylok.v1.ConfigurationBundle
+	8,  // 38: kylok.v1.AgentService.Enroll:input_type -> kylok.v1.EnrollRequest
+	11, // 39: kylok.v1.AgentService.Sync:input_type -> kylok.v1.SyncRequest
+	10, // 40: kylok.v1.AgentService.Enroll:output_type -> kylok.v1.EnrollResponse
+	12, // 41: kylok.v1.AgentService.Sync:output_type -> kylok.v1.SyncResponse
+	40, // [40:42] is the sub-list for method output_type
+	38, // [38:40] is the sub-list for method input_type
+	38, // [38:38] is the sub-list for extension type_name
+	38, // [38:38] is the sub-list for extension extendee
+	0,  // [0:38] is the sub-list for field type_name
 }
 
 func init() { file_kylok_v1_agent_proto_init() }
@@ -2247,13 +2673,21 @@ func file_kylok_v1_agent_proto_init() {
 		return
 	}
 	file_kylok_v1_agent_proto_msgTypes[8].OneofWrappers = []any{}
+	file_kylok_v1_agent_proto_msgTypes[25].OneofWrappers = []any{
+		(*ConfigurationValue_BooleanValue)(nil),
+		(*ConfigurationValue_IntegerValue)(nil),
+		(*ConfigurationValue_StringValue)(nil),
+		(*ConfigurationValue_StringsValue)(nil),
+		(*ConfigurationValue_BundleValue)(nil),
+		(*ConfigurationValue_BundlesValue)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kylok_v1_agent_proto_rawDesc), len(file_kylok_v1_agent_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   22,
+			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

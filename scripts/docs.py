@@ -15,10 +15,10 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = "https://thienvu18.github.io/kylok"
-PAGES = ["index", "install", "examples", "architecture", "policies", "development", "releases", "compatibility", "api"]
+PAGES = ["index", "install", "examples", "architecture", "policies", "development", "releases", "compatibility", "roadmap", "api"]
 LABELS = {
-    "en": ["Introduction", "Install & integrate", "Example applications", "Architecture & transport", "Policies & kiosk", "Development", "Release packages", "Compatibility", "API reference"],
-    "vi": ["Giới thiệu", "Cài đặt và tích hợp", "Ứng dụng mẫu", "Kiến trúc và kết nối", "Chính sách và kiosk", "Phát triển", "Gói phát hành", "Tương thích", "Tham chiếu API"],
+    "en": ["Introduction", "Install & integrate", "Example applications", "Architecture & transport", "Policies & kiosk", "Development", "Release packages", "Compatibility", "Roadmap", "API reference"],
+    "vi": ["Giới thiệu", "Cài đặt và tích hợp", "Ứng dụng mẫu", "Kiến trúc và kết nối", "Chính sách và kiosk", "Phát triển", "Gói phát hành", "Tương thích", "Lộ trình", "Tham chiếu API"],
 }
 
 
@@ -41,7 +41,7 @@ def audit(records):
             errors.append(location + ": public usage documentation required")
         if re.search(r"\b(?:M[0-6]|Phase\s+\d+)\b", item["doc"]):
             errors.append(location + ": explain purpose instead of a project phase")
-    for folder in ("android/kylok-dpc/src/main", "examples/minimal-dpc/src/main"):
+    for folder in ("android/kylok-dpc/src/main", "examples/minimal-dpc/src/main", "examples/configuration-app/src/main"):
         for path in (ROOT / folder).rglob("*.kt"):
             lines = path.read_text().splitlines()
             internal = bool(re.search(r"^internal (?:object|class|interface|enum|data)", path.read_text(), re.M))
@@ -102,7 +102,7 @@ def page_html(language, name, title, body, shared_reference=False):
     selected = ' aria-current="page"'
     nav = "".join(f'<a href="{prefix}{slug}.html"{selected if slug == name else ""}>{html.escape(label)}</a>' for slug, label in zip(PAGES, LABELS[language]))
     canonical = f"{BASE}/api/go.html" if shared_reference else f"{BASE}/{language}/{name}.html"
-    description = "Self-hosted Android device management SDK: Go, Kotlin, LAN QR provisioning, APK deployment, policies and kiosk." if language == "en" else "SDK quản lý thiết bị Android tự triển khai: Go, Kotlin, đăng ký QR qua LAN, triển khai APK, chính sách và kiosk."
+    description = "Open-source Go and Kotlin SDKs for adding Android enrollment, APK delivery and observable device policies to your own self-hosted product." if language == "en" else "Bộ SDK mã nguồn mở Go và Kotlin giúp tích hợp đăng ký thiết bị Android, phân phối APK và theo dõi chính sách trên hạ tầng do bạn vận hành."
     return f'''<!doctype html><html lang="{language}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{html.escape(title)} · Kylok</title><meta name="description" content="{html.escape(description)}"><link rel="canonical" href="{canonical}">
 <link rel="alternate" hreflang="en" href="{BASE}/en/{name}.html"><link rel="alternate" hreflang="vi" href="{BASE}/vi/{name}.html">
@@ -110,7 +110,7 @@ def page_html(language, name, title, body, shared_reference=False):
 <link rel="stylesheet" href="../assets/site.css"><script src="../assets/site.js" defer></script></head><body>
 <header><a class="brand" href="{prefix}index.html">kylok<span>Go + Android SDK</span></a><nav aria-label="Language and source"><a href="../{other}/{name}.html" lang="{other}">{'Tiếng Việt' if other == 'vi' else 'English'}</a><a href="https://github.com/thienvu18/kylok">GitHub ↗</a></nav></header>
 <div class="layout"><aside><label for="search">{'Find a topic' if language == 'en' else 'Tìm chủ đề'}</label><input id="search" type="search" placeholder="{'Search documentation' if language == 'en' else 'Tìm trong tài liệu'}" aria-controls="search-results"><div id="search-results" role="status"></div><nav aria-label="Documentation">{nav}</nav><p class="small">LGPL-3.0-only<br>{'Experimental · development SDKs' if language == 'en' else 'Thử nghiệm · SDK phát triển'}</p></aside>
-<main id="content">{body}</main></div><footer>Kylok · {'Your network. Your devices.' if language == 'en' else 'Mạng của bạn. Thiết bị của bạn.'} · <a href="{prefix}compatibility.html">{'Verification evidence' if language == 'en' else 'Bằng chứng kiểm tra'}</a></footer></body></html>'''
+<main id="content">{body}</main></div><footer>Kylok · {'Your product. Your infrastructure.' if language == 'en' else 'Sản phẩm của bạn. Hạ tầng của bạn.'} · <a href="{prefix}compatibility.html">{'Verification evidence' if language == 'en' else 'Bằng chứng kiểm tra'}</a></footer></body></html>'''
 
 
 def build(output):

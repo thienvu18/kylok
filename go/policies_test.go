@@ -39,7 +39,7 @@ func TestPolicyCannotClaimRequiredAppOrKioskWithoutMatchingInventory(t *testing.
 	request.Msg.ReportedRevision = want.Revision
 	request.Msg.Inventory.Capabilities = []string{"install_apk", "durable_sync", "policy.kiosk", "policy.permissions"}
 	request.Msg.PolicyReport = &v1.PolicyReport{Revision: want.Revision, SnapshotRevision: want.Revision}
-	for key, value := range ports.PolicyExpectations(p, []ports.DesiredApplication{{Artifact: a, Revision: 1}}) {
+	for key, value := range ports.PolicyExpectations(p, []ports.DesiredApplication{{Artifact: ports.Artifact(a), Revision: 1}}) {
 		request.Msg.PolicyReport.Results = append(request.Msg.PolicyReport.Results, &v1.PolicyResult{RuleId: key, State: v1.ComplianceState_COMPLIANCE_STATE_APPLIED, ObservedValue: value})
 	}
 	for i, actual := range []*v1.InstalledApplication{nil,
@@ -127,7 +127,7 @@ func TestPolicyAssignmentSyncReadbackAndReplacement(t *testing.T) {
 	request.Msg.ReportedRevision = 2
 	request.Msg.Inventory.Applications = []*v1.InstalledApplication{{PackageName: a.PackageName, VersionCode: a.VersionCode, SigningCertificates: a.SigningCertificates}}
 	report := &v1.PolicyReport{Revision: 2, SnapshotRevision: 2}
-	expected := ports.PolicyExpectations(want.Policy, []ports.DesiredApplication{{Artifact: a, Revision: 1}})
+	expected := ports.PolicyExpectations(want.Policy, []ports.DesiredApplication{{Artifact: ports.Artifact(a), Revision: 1}})
 	for key, value := range expected {
 		report.Results = append(report.Results, &v1.PolicyResult{RuleId: key, State: v1.ComplianceState_COMPLIANCE_STATE_APPLIED, ObservedValue: value})
 	}

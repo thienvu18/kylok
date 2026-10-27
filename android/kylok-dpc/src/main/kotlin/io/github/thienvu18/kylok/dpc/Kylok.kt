@@ -22,9 +22,22 @@ object Kylok {
     /** Wire identity for paired SDKs; matching this alone does not guarantee development compatibility. */
     val protocolVersion: Int get() = BuildConfig.PROTOCOL_VERSION
     private val listeners = StatusListeners()
+    private val configuration = HostConfiguration()
     internal const val LAN_PERMISSION = "android.permission.ACCESS_LOCAL_NETWORK"
     private val executor = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
+    /** Configure scheduling before the first component/worker starts; equal repeats are idempotent.
+     * Different options after work starts throw IllegalStateException. Options are process-local;
+     * call this in Application.onCreate on every start. Listeners own their returned registration;
+     * WorkManager owns scheduled workers and hosts must not shut down SDK executors.
+     * Usage: `Kylok.configure(this, HostOptions(syncIntervalMinutes = 30))`.
+     */
+    fun configure(context: Context, options: HostOptions) {
+        require(context.applicationContext != null)
+        configuration.configure(options)
+    }
+    /** Freeze options for platform-triggered starts, independently of an opened Activity. */
+    internal fun initialize() = configuration.start()
     /** Query effective ownership before any privileged agent work. */
     internal fun owner(context: Context) =
         context.getSystemService(DevicePolicyManager::class.java).isDeviceOwnerApp(context.packageName)
@@ -37,6 +50,7 @@ object Kylok {
         val extras = intent.getParcelableExtra(
             DevicePolicyManager.EXTRA_PROVISIONING_ADMIN_EXTRAS_BUNDLE, PersistableBundle::class.java)
         val app = context.applicationContext
+        initialize()
         executor.execute {
             val success = runCatching {
                 AgentStorage.update(app) { state ->
@@ -67,15 +81,16 @@ object Kylok {
     internal fun schedule(context: Context) {
         // Cached policy repair needs neither a network connection nor LAN access.
         if (!owner(context)) return
+        val options = initialize()
         val request = OneTimeWorkRequestBuilder<EnrollmentWorker>()
             // CONNECTED requires a validated network on current Android. A LAN with
             // WAN blocked can be unvalidated; attempt the endpoint and retry transport errors.
             // Jitter spreads simultaneous boot traffic; backoff and the 15-minute period meet WorkManager minima.
-            .setInitialDelay((0..5).random().toLong(), TimeUnit.SECONDS)
-            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS).build()
+            .setInitialDelay((0..options.wakeJitterSeconds).random().toLong(), TimeUnit.SECONDS)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, options.retryBackoffSeconds, TimeUnit.SECONDS).build()
         WorkManager.getInstance(context).enqueueUniqueWork("kylok.enrollment.v1", ExistingWorkPolicy.KEEP, request)
-        val periodic = PeriodicWorkRequestBuilder<EnrollmentWorker>(15, TimeUnit.MINUTES)
-            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS).build()
+        val periodic = PeriodicWorkRequestBuilder<EnrollmentWorker>(options.syncIntervalMinutes, TimeUnit.MINUTES)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, options.retryBackoffSeconds, TimeUnit.SECONDS).build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork("kylok.sync.v1", ExistingPeriodicWorkPolicy.KEEP, periodic)
     }
     /** Schedule reconciliation without rotating credentials. Usage: `Kylok.retry(context)` from a refresh action. */

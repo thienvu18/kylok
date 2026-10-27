@@ -1,25 +1,20 @@
 # Gói phát hành
 
-Go phát hành qua tag của `github.com/thienvu18/kylok/go`; Android phát hành lên Maven Central với tọa độ `io.github.thienvu18.kylok:kylok-dpc`. Chọn phiên bản đã có tại [GitHub Releases](https://github.com/thienvu18/kylok/releases). Cặp SDK phát triển dùng cùng một mã nguồn và có thể đổi hợp đồng mà không di trú.
+Kylok gồm SDK máy chủ Go và thư viện Android. Hãy chọn hai phiên bản tương ứng tại [GitHub Releases](https://github.com/thienvu18/kylok/releases). Go module tải từ kho Go công khai; gói Android có trên Maven Central. Khi build từ mã nguồn, dùng cùng revision cho cả hai SDK.
 
-## Quy trình phát hành
+Xem [trạng thái kiểm định](compatibility.html) để biết bằng chứng thiết bị và [lộ trình](roadmap.html) để biết phần việc hiện tại.
 
-1. Tạo PR vào `main` được bảo vệ. Branch phải cập nhật theo `main` và vượt **SDK tests** cùng **Documentation build**.
-2. Merge tự động build và ký cả hai SDK, không chạy test trong bước deploy. Phiên bản thêm GitHub run ID, ví dụ `0.1.0-dev.123`.
-3. Workflow lưu gói trong bản nháp, phát hành bundle Maven đã ký qua Central Portal, tạo tag bất biến `go/vVERSION` và `android/vVERSION`, yêu cầu Go lập chỉ mục rồi công khai một GitHub prerelease.
-4. Hai tag SDK và `release/RUN_ID` trỏ cùng commit nguồn phát hành, có commit cha là commit vừa merge. Chỉ tệp phiên bản, ví dụ tương ứng trong tài liệu và metadata build thay đổi.
-5. Workflow lỗi sẽ tiếp tục với artifact và deployment ID đã lưu. Nếu mất phản hồi upload, phải lấy ID thực tế từ Central Portal; không tự upload lại cùng phiên bản.
+## Cài đặt phiên bản đã phát hành
 
-Consumer công khai không cần tài khoản đọc Maven. Cấu hình `mavenCentral()` và dùng phiên bản đã phát hành. Có thể dùng namespace Maven mới đã xác minh cho bản tương lai; tọa độ cũ không thay đổi.
+Dùng đúng phiên bản được ghi trong GitHub Releases cho cả hai SDK. Thêm Go module vào máy chủ bằng `go get github.com/thienvu18/kylok/go@vVERSION`. Trong ứng dụng Android, thêm `mavenCentral()` vào danh sách repository rồi khai báo dependency `io.github.thienvu18.kylok:kylok-dpc:VERSION`. Bạn không cần thông tin đăng nhập để tải các gói này.
 
-## Gói cục bộ
+## Tự build gói từ mã nguồn
+
+Nếu muốn chỉnh sửa Kylok hoặc tạo gói để tích hợp cục bộ, chạy:
 
 ```sh
 make distribution
 make test-consumers
-make test-release
 ```
 
-Gói đầy đủ `out/release-assets/kylok-distribution.zip` gồm Go proxy, AAR/mã nguồn/KDoc/POM/module metadata Maven, mã nguồn tương ứng, giấy phép, manifest dependency và checksum. `kylok-release.json` ghi phiên bản và định danh nguồn. Không phát hành gói từ nguồn chưa commit.
-
-Sau khi phát hành, `KYLOK_REMOTE_SDK=all ./scripts/test-consumers.sh` kiểm tra gói công khai từ nguồn và bản phân phối tương ứng. Đây là bước kiểm tra riêng của maintainer. Bản ổn định v1 vẫn cần toàn bộ điều kiện phần mềm và thiết bị vật lý. Xem [hướng dẫn vận hành phát hành](https://github.com/thienvu18/kylok/blob/main/docs/releases.md) để cấu hình secret, ký và khôi phục.
+Các gói dùng tại máy được tạo trong `out/release`; lệnh này không công khai gói. Xem [hướng dẫn phát triển](development.html) để biết yêu cầu bộ công cụ và các bước kiểm tra.

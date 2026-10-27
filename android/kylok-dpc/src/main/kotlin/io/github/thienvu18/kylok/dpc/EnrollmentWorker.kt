@@ -16,6 +16,7 @@ class EnrollmentWorker(context: Context, params: WorkerParameters) : Worker(cont
     @Volatile private var runningThread: Thread? = null
     /** Serialize agent runs and expose the active thread for WorkManager cancellation. Usage: WorkManager invokes this callback for the SDK’s scheduled work. */
     override fun doWork(): Result = synchronized(runLock) {
+        Kylok.initialize()
         runningThread = Thread.currentThread()
         try { if (isStopped) Result.retry() else runAgent() } finally { runningThread = null }
     }

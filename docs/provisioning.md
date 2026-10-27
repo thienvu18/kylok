@@ -1,13 +1,15 @@
 # Physical verification checklist
 
-Use the [local server guide](local-server.md) for build/start/QR commands. Physical tests are performed by the maintainer. The [recorded POCO M2 run](validation/2026-10-25-poco-enrollment.md) passed initial LAN HTTP enrollment with internet available; it proves no later install/recovery outcome.
+Follow the ordered [physical test runbook](physical-device-tests.md) and copy its [result template](validation/physical-device-template.md) for each device/firmware/transport run.
+
+Use the [local server guide](local-server.md) for build/start/QR commands. Physical tests are performed by the maintainer. The [POCO device report](validation/2026-10-27-poco-pad-x1.md) records enrollment, app/configuration behavior, background/LAN/server/reboot recovery and selected policy results. WAN was available, and uninstall prevention failed.
 
 The [independent package consumers](sdk.md) prove Go-host execution and Android build/metadata integration only. For device tests, record the Go/Android SDK pair/source revision in addition to the host APK identity. Package versions and a successful minified build are not OS enforcement evidence.
 
 ## Provisioning
 
 1. Use a resettable test device. Record exact model, API, firmware fingerprint and signed APK digest/signer.
-2. For M0, block the device's WAN before scanning and keep LAN IP/DNS/API/APK access reachable. Record that block through the entire run.
+2. For offline qualification, block the device's WAN before scanning and keep LAN IP/DNS/API/APK access reachable. Record that block through the entire run.
 3. Enter the OEM enterprise QR flow from the factory-reset welcome screen, join the LAN and scan the private QR. Do not substitute `adb dpm set-device-owner` as QR evidence.
 4. Confirm signed APK download, Fully Managed setup and Device Owner. For HTTPS APK hosting, Setup Wizard must already trust the certificate; app-bundled private trust cannot change that earlier download.
 5. Confirm one `MANAGED` registry identity and authenticated inventory. Open Kylok for sanitized ownership/callback/status. Record failures at their actual stage.
@@ -28,7 +30,7 @@ Build an update with `KYLOK_HOST_VERSION_CODE=2 ./scripts/prepare-local-server.s
 
 ## Policies and kiosk
 
-Use a current build/fresh development enrollment and the [policy commands](local-server.md#manage-policies). Keep server access available for an explicit `{}` replacement to release settings.
+Use the exact candidate build and a fresh enrollment and the [policy commands](local-server.md#manage-policies). Keep server access available for an explicit `{}` replacement to release settings.
 
 | Scenario | Required observation |
 | --- | --- |
@@ -40,3 +42,7 @@ Use a current build/fresh development enrollment and the [policy commands](local
 | Required-app drift while kiosk is active | Existing kiosk is suspended until exact assigned app prerequisites are observed again. |
 
 Record exact build/artifact/network conditions and results in [compatibility](compatibility.md). Do not publish QR images, credentials, Wi-Fi passwords, private keys or personal identifiers. An online provisioning run is not an offline result; a successful setter/commit is not observed-state proof.
+
+## Independent managed app configuration
+
+Follow [the configuration app procedure](managed-configuration.md#independent-app-fixture-and-manual-check). Record actual title/refresh-button behavior after assignment, update, process restart and policy release, independently of the DPC readback digest. The POCO report contains these observations for its source build; run the checks for each device/firmware you intend to support.

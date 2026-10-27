@@ -1,69 +1,61 @@
 # Install and integrate
 
-Kylok contains two independently versioned SDKs. Current development versions are Go `0.1.0-dev` and Android `0.1.0-dev`, using protocol 1. Pair them from the same source revision; protocol numbers alone do not promise development compatibility.
+Kylok is a pair of libraries: a Go SDK for your server and an Android Device Policy Controller (DPC) library for your device app. Use matching Go and Android versions. Your applications own business authorization, server lifecycle, Android application ID and signing.
 
 ## Obtain packages
 
-Choose a published version from [GitHub Releases](https://github.com/thienvu18/kylok/releases). Public Go modules and Maven Central need no read credentials. With `mavenCentral()` configured, declare `io.github.thienvu18.kylok:kylok-dpc:VERSION`; use `go get github.com/thienvu18/kylok/go@vVERSION` for Go. Replace VERSION with the released SDK version. For local packages, use a checkout with the documented toolchain:
-
-```sh
-make distribution
-make test-consumers
-```
-
-`out/release` contains a Go module proxy, Maven repository, verified metadata, source/license archives and checksums. The complete downloadable bundle is prepared under `out/release-assets` by `make test-release`. Do not copy only an AAR: Maven metadata supplies its dependencies.
+Choose the current package versions from [GitHub Releases](https://github.com/thienvu18/kylok/releases). The Go module is public, and the Android library is available from Maven Central; neither requires read credentials. Keep both SDKs on the same version/source revision.
 
 ## Go host
 
-Module: `github.com/thienvu18/kylok/go`. For local packages, add the generated `go-proxy` as a file proxy. Published Go versions will use `go/vX.Y.Z` repository tags.
-
-From a new module, substitute the absolute distribution path:
+Add the Go SDK to your server module:
 
 ```sh
-GOWORK=off GOPROXY=file:///absolute/path/to/release/go-proxy,https://proxy.golang.org \
-  GONOSUMDB=github.com/thienvu18/kylok/go \
-  go get github.com/thienvu18/kylok/go@v0.1.0-dev
+go get github.com/thienvu18/kylok/go@v0.1.0-dev.40316176224
 ```
 
-The checksum-database exception is only for unpublished local snapshots. Published versions use normal module verification.
+Inspect the signed Android host APK, create the SDK and mount its handler on your server:
 
 ```go
 apk, err := provisioning.Inspect(ctx, signedHostAPK, provisioning.Tools{})
 // Handle err before constructing the SDK.
 sdk, err := kylok.New(ctx, kylok.Options{
-    PublicURL: "http://192.168.101.5:8080",
+    PublicURL: "https://mdm.example.com",
     Bootstrap: apk,
     DataDir: "/var/lib/kylok",
 })
-// Handle err. Mount sdk.Handler() on the host-owned listener.
+// Handle err. Mount sdk.Handler() on your HTTP server.
 ```
 
-The host owns business authorization, listener lifecycle and shutdown. Enable HTTP/2: HTTP needs `http.Protocols.SetUnencryptedHTTP2(true)` alongside HTTP/1; HTTPS needs HTTP/2 and valid certificate trust. A plain HTTP/1 listener cannot serve the Android gRPC client.
+Your server controls authorization, listening addresses and shutdown. The Android client uses HTTP/2 gRPC: enable HTTP/2 on the listener; if you use HTTP, enable h2c as well. A listener that only supports HTTP/1 cannot serve the Android SDK.
 
-`CreateEnrollment`/`QR` provision; `ListDevices`/`RevokeDevice` manage identities; application APIs register/assign/list/remove verified artifacts; policy APIs replace desired state and read observed compliance. Defaults persist in SQLite/filesystem. Custom `ports` providers remain host-owned and must pass the reusable conformance suites.
+Use the Go APIs to create QR enrollments, list or revoke devices, register and assign APKs, review installation operations, and set or inspect policies. SQLite and filesystem storage are included. Use the `ports` interfaces if your product needs custom storage.
 
 ## Android host
 
-Configure a Maven repository pointing to the extracted local repository and declare:
+Add Maven Central and the Kylok dependency to your Android app:
 
 ```kotlin
-// Host dependency repository configuration:
 repositories {
     google()
     mavenCentral()
-    maven { url = uri("/absolute/path/to/release/maven") }
 }
-// Host Android module:
-implementation("io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev")
+dependencies {
+    implementation("io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev.40316176224")
+}
 ```
 
-Use JDK 17, min SDK 33, compile/target SDK 37 and a compatible Kotlin 2.2 compiler. The host owns application ID, signing, cleartext permission/TLS trust and backup policy. Preserve the AAR's merged provisioning components and data-extraction exclusions. Only Android provisioning can grant Device Owner.
+Use JDK 17, min SDK 33, compile/target SDK 37 and a compatible Kotlin 2.2 compiler. Your app owns its application ID, signing key, network trust and backup policy. Keep the provisioning components and backup exclusions supplied by the library. Only Android's provisioning flow can grant Device Owner.
+
+Read device status or schedule a sync from your app:
 
 ```kotlin
 val registration = Kylok.observe(StatusListener { status -> render(status) })
 Kylok.snapshot(context) { status -> render(status) }
-// Close registration with the host lifecycle.
-Kylok.retry(context) // schedules sync; completion is observed separately
+// Close registration with your app lifecycle.
+Kylok.retry(context) // schedules sync; read the result separately
 ```
 
-Open `Kylok.confirmPendingInstall` from a deliberate user action when Android requires confirmation. Status/event hooks are read-only and best-effort; they cannot approve policy or bypass authentication. See the [API reference](api.html) and [example flows](examples.html).
+Open `Kylok.confirmPendingInstall` only after a user action when Android requests install confirmation. Status callbacks are read-only notifications; they cannot approve policies or bypass authentication. See the [API reference](api.html) and [example flows](examples.html).
+
+The current source also provides [host integration](https://github.com/thienvu18/kylok/blob/main/docs/host-integration.md) and [Android app configuration](https://github.com/thienvu18/kylok/blob/main/docs/managed-configuration.md) APIs.

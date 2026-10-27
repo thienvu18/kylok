@@ -1,24 +1,27 @@
 # Kiến trúc và kết nối
 
-Kylok là cặp SDK, không ép dùng framework nghiệp vụ. Ứng dụng Go quản lý phân quyền, listener và vòng đời. Ứng dụng Android sở hữu application ID, khóa ký, cấu hình tin cậy mạng và giao diện. Ví dụ chỉ dùng API công khai; SDK không phụ thuộc ví dụ hoặc ứng dụng nghiệp vụ.
+Kylok bổ sung khả năng quản lý thiết bị vào những ứng dụng bạn đang có. SDK Go chạy trong máy chủ của bạn; thư viện Android chạy trong ứng dụng trên thiết bị. Bạn vẫn tự quyết định cách phân quyền, vận hành máy chủ, đặt application ID, ký ứng dụng và xây dựng trải nghiệm cho người dùng. Các ứng dụng mẫu minh họa một cách kết nối hai phần này.
 
 | Thành phần | Trách nhiệm |
 | --- | --- |
-| Go facade | Đăng ký/QR, danh bạ, danh mục/gán ứng dụng, tác vụ, chính sách và sự kiện tùy chọn. |
-| SQLite/hệ thống tệp mặc định | Giao dịch bền vững, định danh theo phạm vi, nội dung APK bất biến đã xác minh. |
-| Android AAR | Callback provisioning, trạng thái mã hóa, đồng bộ, tải/cài đặt và áp dụng chính sách. |
-| Protobuf dùng chung | Hợp đồng có kiểu cho yêu cầu/phản hồi, phiên bản, báo cáo, lỗi và tuân thủ. |
+| SDK máy chủ Go | Tạo mã đăng ký, quản lý thiết bị, gán ứng dụng và đặt chính sách. |
+| Bộ lưu trữ tích hợp sẵn | Lưu hồ sơ thiết bị, chính sách và APK đã xác minh bằng SQLite cùng hệ thống tệp. |
+| Thư viện Android | Đăng ký thiết bị, nhận yêu cầu, cài ứng dụng và gửi trạng thái thiết bị. |
+| Ứng dụng của bạn | Quản lý phân quyền nghiệp vụ, vòng đời máy chủ, định danh và chữ ký ứng dụng, giao diện người dùng. |
 
-## Origin trong LAN
+## Địa chỉ máy chủ và giao thức kết nối
 
-HTTP/HTTPS và IP/tên miền đều là cấu hình thông thường. Scheme cấu hình quyết định giao thức; không tự hạ cấp. HTTPS kiểm tra chứng chỉ/tên máy chủ. HTTP không mã hóa thông tin đăng ký hoặc bearer credential khi truyền. API và APK bootstrap có thể dùng hai origin riêng.
+Bạn có thể dùng địa chỉ IP hoặc tên miền với HTTP hay HTTPS. Kylok dùng đúng giao thức trong địa chỉ đã cấu hình và không tự hạ từ HTTPS xuống HTTP. HTTPS xác minh chứng chỉ và tên máy chủ; HTTP không mã hóa token đăng ký hay thông tin xác thực của thiết bị khi truyền. Máy chủ API và máy chủ APK ban đầu có thể dùng hai địa chỉ khác nhau.
 
-Android dùng gRPC trên HTTP/2. HTTP cần listener Go hỗ trợ h2c. Tin cậy của Setup Wizard trước khi cài APK khác với tin cậy cấu hình trong ứng dụng đã cài. CA riêng nhúng trong ứng dụng không thể khiến lần tải trước đó của Setup Wizard trở nên tin cậy.
+SDK Android giao tiếp qua HTTP/2. Nếu dùng HTTP, listener Go cần hỗ trợ h2c; nếu dùng HTTPS, listener phải hỗ trợ HTTP/2. Trước khi QR tải ứng dụng Android, Setup Wizard phải tin cậy chứng chỉ của máy chủ APK. Cấu hình tin cậy bên trong ứng dụng không thay đổi được bước xác minh trước khi cài đặt đó.
 
-## Định danh và tác động bền vững
+## Định danh bền vững và thay đổi trên thiết bị
 
-Token đăng ký chỉ dùng một lần và gắn với phạm vi. Android lưu attempt/khóa trước khi nhận định danh. Máy chủ tiêu thụ token, tạo định danh và lưu biên nhận khôi phục mã hóa gắn với khóa trong một giao dịch. Retry đúng nhận lại định danh cũ; replay khác binding và định danh đã thu hồi bị từ chối.
+Mỗi QR đăng ký chứa một token chỉ dùng một lần và gắn với phạm vi quản lý. Nếu quá trình thiết lập bị gián đoạn, thiết bị có thể gửi lại cùng yêu cầu để khôi phục đúng định danh. Thiết bị đã bị thu hồi không thể kết nối lại bằng thông tin xác thực cũ.
 
-Đồng bộ lưu yêu cầu trước khi gửi, gắn số thứ tự với đúng nội dung. Phiên bản yêu cầu, phiên bản báo cáo và quan sát thực tế được tách riêng. Phiên cài đặt và lần áp dụng chính sách được lưu trước tác động bên ngoài. Gói/phiên bản/chữ ký quan sát và đọc lại chính sách thực tế quyết định kết quả; chỉ callback hoặc setter chưa đủ.
+Kylok phân biệt ứng dụng và chính sách được yêu cầu với những gì Android báo đã cài hoặc đã áp dụng. Tải xong, nhận callback cài đặt hay gửi lệnh chính sách chưa đủ để báo thành công: SDK kiểm tra gói/phiên bản thực tế và trả kết quả riêng cho từng quy tắc chính sách. Công việc đã lưu có thể tiếp tục sau khi mất mạng hoặc ứng dụng bị dừng.
 
-Provider tùy chỉnh phải giữ các bất biến, hành vi đồng thời/context và quyền sở hữu vòng đời. Observer trạng thái/sự kiện chỉ đọc và best-effort. Nghiệp vụ/audit cần bảo đảm giao nhận phải dùng outbox giao dịch do ứng dụng chủ quản lý.
+Nếu dùng bộ lưu trữ riêng, bạn cần bảo đảm dữ liệu giữa các thiết bị không lẫn với nhau và các thao tác được lưu bền vững. Callback trạng thái/sự kiện chỉ là thông báo bổ sung; hãy lưu bằng hệ thống của ứng dụng nếu cần đưa thông tin đó vào nhật ký nghiệp vụ hoặc audit lâu dài.
+
+
+Mã nguồn hiện tại có API đọc/liên kết theo phạm vi, PostgreSQL tùy chọn, luồng thay đổi/snapshot bền vững, tùy chọn lịch Android bất biến và cấu hình ứng dụng theo kiểu rõ ràng. Các chức năng này mới hơn gói đầu tiên đã phát hành. Xem [hợp đồng host](https://github.com/thienvu18/kylok/blob/main/docs/host-integration.md) và [cấu hình Android](https://github.com/thienvu18/kylok/blob/main/docs/managed-configuration.md).

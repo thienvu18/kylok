@@ -34,6 +34,10 @@ internal class AndroidPolicyPlatform(private val context: Context, private val s
         if (!isOwner()) throw SecurityException("Device Owner required")
         when (setting.kind) {
             PolicyKind.RESTRICTION -> if (setting.name !in RESTRICTIONS) throw PolicyUnsupported("RESTRICTION_UNSUPPORTED")
+            PolicyKind.MANAGED_CONFIGURATION -> {
+                if (installed(setting.target) == null) throw PolicyPending("REQUIRED_APP_PENDING")
+                ConfigurationValues.read(setting.value)
+            }
             PolicyKind.PERMISSION -> {
                 val app = try { packages.getPackageInfo(setting.target, PackageManager.GET_PERMISSIONS) }
                     catch (_: PackageManager.NameNotFoundException) { throw PolicyPending("REQUIRED_APP_PENDING") }
@@ -76,6 +80,7 @@ internal class AndroidPolicyPlatform(private val context: Context, private val s
         PolicyKind.MAXIMUM_TIME_TO_LOCK -> dpm.getMaximumTimeToLock(admin).toString()
         PolicyKind.RESTRICTION -> ownRestriction(setting.name).toString()
         PolicyKind.PERMISSION -> permissionState(setting)
+        PolicyKind.MANAGED_CONFIGURATION -> ConfigurationValues.journal(AndroidConfigurations.capture(dpm.getApplicationRestrictions(admin, setting.target)))
         // Preserve the host's allowlist. An earlier external activity launch is
         // not replayed as a side effect of releasing Kylok's kiosk policy.
         PolicyKind.LOCK_TASK -> lockTaskValue(lockPackages(), "")
@@ -86,6 +91,7 @@ internal class AndroidPolicyPlatform(private val context: Context, private val s
         PolicyKind.SCREEN_CAPTURE -> dpm.getScreenCaptureDisabled(null).toString()
         PolicyKind.MAXIMUM_TIME_TO_LOCK -> dpm.getMaximumTimeToLock(null).toString()
         PolicyKind.RESTRICTION -> context.getSystemService(UserManager::class.java).hasUserRestriction(setting.name).toString()
+        PolicyKind.MANAGED_CONFIGURATION -> capture(setting)
         PolicyKind.PERMISSION -> {
             val state = permissionState(setting)
             val granted = packages.checkPermission(setting.name, setting.target) == PackageManager.PERMISSION_GRANTED
@@ -102,6 +108,8 @@ internal class AndroidPolicyPlatform(private val context: Context, private val s
             PolicyKind.SCREEN_CAPTURE -> dpm.setScreenCaptureDisabled(admin, setting.value.toBooleanStrict())
             PolicyKind.MAXIMUM_TIME_TO_LOCK -> dpm.setMaximumTimeToLock(admin, setting.value.toLong())
             PolicyKind.RESTRICTION -> if (setting.value.toBooleanStrict()) dpm.addUserRestriction(admin, setting.name) else dpm.clearUserRestriction(admin, setting.name)
+            PolicyKind.MANAGED_CONFIGURATION -> dpm.setApplicationRestrictions(admin, setting.target,
+                AndroidConfigurations.bundle(ConfigurationValues.read(setting.value)))
             PolicyKind.PERMISSION -> {
                 val state = when (setting.value) {
                     "GRANTED" -> DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
@@ -130,7 +138,7 @@ internal class AndroidPolicyPlatform(private val context: Context, private val s
         }
     }
     companion object {
-        val CAPABILITIES = listOf("policy.camera", "policy.screen_capture", "policy.maximum_time_to_lock", "policy.restrictions", "policy.permissions", "policy.kiosk")
+        val CAPABILITIES = listOf("policy.managed_configuration", "policy.camera", "policy.screen_capture", "policy.maximum_time_to_lock", "policy.restrictions", "policy.permissions", "policy.kiosk")
         val RESTRICTIONS = setOf(UserManager.DISALLOW_ADD_USER, UserManager.DISALLOW_DEBUGGING_FEATURES,
             UserManager.DISALLOW_MODIFY_ACCOUNTS, UserManager.DISALLOW_UNINSTALL_APPS)
         private val SENSOR_PERMISSIONS = setOf("android.permission.ACCESS_FINE_LOCATION", "android.permission.ACCESS_COARSE_LOCATION",

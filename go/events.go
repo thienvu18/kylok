@@ -21,7 +21,7 @@ type Event struct {
 // EventSink is an optional best-effort notification hook. Calls are serialized on
 // one SDK-owned worker and must honor cancellation. Errors/panics never change
 // committed results. Delivery can be dropped, duplicated, or lost on shutdown;
-// use a transactional StateStore outbox for durable business/audit events.
+// use ListChanges/ReadProjection for durable projection recovery and export permanent audit records to host storage before retention expires.
 type EventSink func(context.Context, Event) error
 
 type eventDispatcher struct {

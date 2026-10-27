@@ -5,7 +5,7 @@ import io.github.thienvu18.kylok.proto.v1.*
 import org.json.JSONObject
 import java.io.IOException
 
-internal enum class PolicyKind { CAMERA, SCREEN_CAPTURE, MAXIMUM_TIME_TO_LOCK, RESTRICTION, PERMISSION, LOCK_TASK }
+internal enum class PolicyKind { CAMERA, SCREEN_CAPTURE, MAXIMUM_TIME_TO_LOCK, RESTRICTION, PERMISSION, MANAGED_CONFIGURATION, LOCK_TASK }
 internal data class PolicySetting(val id: String, val kind: PolicyKind, val value: String, val target: String = "", val name: String = "") {
     /** Serialize a policy setting for durable baseline restoration. */
     fun json() = JSONObject().put("id", id).put("kind", kind.name).put("value", value).put("target", target).put("name", name)
@@ -62,6 +62,8 @@ internal class PolicyEngine(private val storage: StateAccess, private val platfo
         p.restrictionsList.forEach { add(PolicySetting("restriction:${it.name}", PolicyKind.RESTRICTION, it.enabled.toString(), name = it.name)) }
         p.permissionsList.forEach { add(PolicySetting("permission:${it.packageName}:${it.permission}", PolicyKind.PERMISSION,
             it.state.name.removePrefix("PERMISSION_STATE_"), it.packageName, it.permission)) }
+        p.managedConfigurationsList.forEach { add(PolicySetting("configuration:${it.packageName}", PolicyKind.MANAGED_CONFIGURATION,
+            ConfigurationValues.journal(it.values), it.packageName)) }
         // Kiosk is always last, after prerequisites and independent restrictions.
         if (p.hasLockTask()) add(PolicySetting("lock_task", PolicyKind.LOCK_TASK, lockTaskValue(p.lockTask.packagesList, p.lockTask.kioskPackage)))
     }
@@ -171,10 +173,11 @@ internal class PolicyEngine(private val storage: StateAccess, private val platfo
                         results += result(setting.id, ComplianceState.COMPLIANCE_STATE_PENDING, "REQUIRED_APPS_PENDING")
                         continue
                     }
-                    if (setting.kind == PolicyKind.PERMISSION && ready[setting.target] != true) throw PolicyPending("REQUIRED_APP_PENDING")
+                    if (setting.kind in setOf(PolicyKind.PERMISSION, PolicyKind.MANAGED_CONFIGURATION) && ready[setting.target] != true) throw PolicyPending("REQUIRED_APP_PENDING")
                     val observed = attempt(setting, entry)
                     results += result(setting.id, if (observed == setting.value) ComplianceState.COMPLIANCE_STATE_APPLIED else ComplianceState.COMPLIANCE_STATE_PENDING,
-                        if (observed == setting.value) "" else "OBSERVATION_PENDING", observed)
+                        if (observed == setting.value) "" else "OBSERVATION_PENDING",
+                        if (setting.kind == PolicyKind.MANAGED_CONFIGURATION) ConfigurationValues.digest(ConfigurationValues.read(observed)) else observed)
                 } catch (error: Exception) { results += failure(setting.id, error) }
             }
         }

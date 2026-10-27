@@ -8,11 +8,13 @@ import android.content.Intent
 class KylokDeviceAdminReceiver : DeviceAdminReceiver() {
     /** Persist provisioning extras before completing the asynchronous broadcast. Usage: Android sends the profile-provisioning completion callback. */
     override fun onProfileProvisioningComplete(context: Context, intent: Intent) {
+        Kylok.initialize()
         val pending = goAsync()
         Kylok.capture(context, intent, "PROFILE_PROVISIONING_COMPLETE") { pending.finish() }
     }
     /** Capture administrator activation without treating it as proof of Device Owner. Usage: Android invokes this administrator callback. */
     override fun onEnabled(context: Context, intent: Intent) {
+        Kylok.initialize()
         val pending = goAsync()
         Kylok.capture(context, intent, "DEVICE_ADMIN_ENABLED") { pending.finish() }
     }
@@ -22,6 +24,7 @@ class KylokDeviceAdminReceiver : DeviceAdminReceiver() {
     override fun onLockTaskModeExiting(context: Context, intent: Intent) { recordLockTask(context, "") }
     /** Persist the current-boot Lock Task observation off the broadcast thread and schedule repair. */
     private fun recordLockTask(context: Context, pkg: String) {
+        Kylok.initialize()
         val pending = goAsync()
         callbacks.execute {
             try {

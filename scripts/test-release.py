@@ -147,7 +147,9 @@ class ReleaseGates(unittest.TestCase):
         for sdk in ("go", "android"):
             (self.root / sdk).mkdir()
             (self.root / sdk / "VERSION").write_text("0.1.0-dev\n")
-        (self.root / "ROADMAP.md").write_text("## v1 release acceptance\n" + "- [ ] **Pending:** physical evidence\n" * 13)
+        (self.root / "docs").mkdir()
+        self.readiness = self.root / release.READINESS_DOCUMENT
+        self.readiness.write_text("# Stable release readiness\n" + "- [ ] **Pending:** physical evidence\n" * 13)
         self.addCleanup(patch.stopall)
         patch.object(release, "ROOT", self.root).start()
         patch.object(release.package, "ROOT", self.root).start()
@@ -173,8 +175,27 @@ class ReleaseGates(unittest.TestCase):
         (self.root / "android/VERSION").write_text("2.0.0\n")
         with self.assertRaisesRegex(ValueError, "thirteen release gates"):
             release.validate("android/v2.0.0", clean=False)
-        (self.root / "ROADMAP.md").write_text("## v1 release acceptance\n" + "- [x] **Verified:** evidence\n" * 13)
+        self.readiness.write_text("# Stable release readiness\n" + "".join(
+            f"- [x] **Gate {index}:** [candidate evidence](compatibility.md)\n" for index in range(13)))
         self.assertEqual(release.validate("go/v1.0.0", clean=False), ("go", "1.0.0"))
+
+    def test_stable_readiness_rejects_duplicate_missing_or_unsupported_attestations(self):
+        (self.root / "go/VERSION").write_text("1.0.0\n")
+        complete = [f"- [x] **Gate {index}:** [candidate evidence](compatibility.md)\n" for index in range(13)]
+        for gates in (complete[:-1], complete + [complete[0]], [complete[0]] * 13,
+                      [line.replace("[candidate evidence](compatibility.md)", "unrecorded") for line in complete]):
+            with self.subTest(gates=gates):
+                self.readiness.write_text("# Stable release readiness\n" + "".join(gates))
+                with self.assertRaisesRegex(ValueError, "thirteen release gates"):
+                    release.validate("go/v1.0.0", clean=False)
+        self.readiness.unlink()
+        with self.assertRaises(FileNotFoundError):
+            release.validate("go/v1.0.0", clean=False)
+
+    def test_development_publication_does_not_depend_on_roadmap_or_stable_readiness(self):
+        self.readiness.unlink()
+        (self.root / "ROADMAP.md").write_text("# Next roadmap\n\nA different set of milestones.\n")
+        self.assertEqual(release.validate("go/v0.1.0-dev", clean=False), ("go", "0.1.0-dev"))
 
     def test_dirty_or_different_tag_source_is_rejected(self):
         with patch.object(release.package, "git", return_value=b" M go/file.go\n"):
