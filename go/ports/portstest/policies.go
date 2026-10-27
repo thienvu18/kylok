@@ -88,3 +88,83 @@ func Policies(t *testing.T, factory func(*testing.T) ports.StateStore) {
 		}
 	})
 }
+
+// ManagedConfigurations verifies typed config idempotency and honest current-snapshot readback on any adapter.
+// Usage: portstest.ManagedConfigurations(t, factory).
+func ManagedConfigurations(t *testing.T, factory func(*testing.T) ports.StateStore) {
+	t.Helper()
+	t.Run("managed-configuration-binding-observation-release", func(t *testing.T) {
+		ctx := context.Background()
+		s := factory(t)
+		now := time.Now().UTC().Truncate(time.Millisecond)
+		token := sha256.Sum256([]byte("configuration-token"))
+		key := sha256.Sum256([]byte("configuration-key"))
+		credential := sha256.Sum256([]byte("configuration-credential"))
+		if err := s.CreateEnrollment(ctx, ports.Enrollment{TokenHash: token[:], ScopeID: "scope", ExpiresAt: now.Add(time.Hour)}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.Consume(ctx, ports.Attempt{TokenHash: token[:], ID: "configuration-attempt", KeyHash: key[:], Device: ports.Device{ID: "device", ScopeID: "scope"}, CredentialHash: credential[:], Receipt: []byte("encrypted"), Now: now, RecoverUntil: now.Add(time.Hour)}); err != nil {
+			t.Fatal(err)
+		}
+		artifact := ports.Artifact{ScopeID: "scope", SHA256: "digest", PackageName: "app.example", VersionCode: 1, SigningCertificates: []string{"signer"}}
+		if err := s.RegisterArtifact(ctx, artifact); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.Assign(ctx, ports.Assignment{ScopeID: "scope", DeviceID: "device", ArtifactSHA256: "digest", IdempotencyKey: "assign", OperationID: "operation", Now: now, Deadline: now.Add(time.Hour)}); err != nil {
+			t.Fatal(err)
+		}
+		label := "private managed value"
+		policy := ports.Policy{RequiredPackages: []string{artifact.PackageName}, ManagedConfigurations: []ports.ManagedConfiguration{{PackageName: artifact.PackageName, Values: ports.ConfigurationBundle{Entries: []ports.ConfigurationEntry{{Key: "label", Value: ports.ConfigurationValue{String: &label}}}}}}}
+		assigned, err := s.SetPolicy(ctx, ports.PolicyAssignment{ScopeID: "scope", DeviceID: "device", IdempotencyKey: "configure", Policy: policy})
+		if err != nil {
+			t.Fatal(err)
+		}
+		duplicate, err := s.SetPolicy(ctx, ports.PolicyAssignment{ScopeID: "scope", DeviceID: "device", IdempotencyKey: "configure", Policy: policy})
+		if err != nil || duplicate.Revision != assigned.Revision {
+			t.Fatal(duplicate, err)
+		}
+		input := ports.SyncInput{DeviceID: "device", CredentialHash: credential[:], Sequence: 1, ReportedRevision: assigned.Revision, Now: now,
+			Inventory:    ports.Inventory{DeviceOwner: true, Capabilities: []string{"install_apk", "policy.managed_configuration"}, Applications: []ports.InstalledApplication{{PackageName: artifact.PackageName, VersionCode: 1, SigningCertificates: []string{"signer"}}}},
+			PolicyReport: &ports.PolicyReport{Revision: assigned.Revision, SnapshotRevision: assigned.Revision, Results: []ports.PolicyResult{{RuleID: "configuration:" + artifact.PackageName, State: "APPLIED", ObservedValue: "sha256:incorrect"}}}}
+		if _, err = s.Sync(ctx, input); err != nil {
+			t.Fatal(err)
+		}
+		status, err := s.GetPolicy(ctx, "scope", "device")
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, r := range status.Compliance {
+			if r.RuleID == "configuration:"+artifact.PackageName {
+				found = true
+				if r.State != "FAILED" || r.Reason != "OBSERVATION_MISMATCH" {
+					t.Fatal("false config success", r)
+				}
+			}
+		}
+		if !found {
+			t.Fatal(status)
+		}
+		input.Sequence++
+		input.PolicyReport.Results[0].ObservedValue = ports.ConfigurationDigest(assigned.Policy.ManagedConfigurations[0].Values)
+		if _, err = s.Sync(ctx, input); err != nil {
+			t.Fatal(err)
+		}
+		status, err = s.GetPolicy(ctx, "scope", "device")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range status.Compliance {
+			if r.RuleID == "configuration:"+artifact.PackageName && r.State != "APPLIED" {
+				t.Fatal("digest readback rejected", r)
+			}
+		}
+		released, err := s.SetPolicy(ctx, ports.PolicyAssignment{ScopeID: "scope", DeviceID: "device", IdempotencyKey: "release", Policy: ports.Policy{}})
+		if err != nil || len(released.Policy.ManagedConfigurations) != 0 {
+			t.Fatal(released, err)
+		}
+		if _, err = s.GetPolicy(ctx, "other", "device"); !errors.Is(err, ports.ErrNotFound) {
+			t.Fatal("configuration scope leak", err)
+		}
+	})
+}

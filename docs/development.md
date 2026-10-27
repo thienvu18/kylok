@@ -1,25 +1,27 @@
 # Development
 
-Kylok is experimental. Rebuild both SDKs after schema changes and use fresh development data when formats change. There is no frozen pre-release protocol baseline or migration guarantee. Do not replace an enrolled device/server deployment automatically while developing.
+Kylok is experimental. Rebuild both SDKs from the same source revision after schema changes and use fresh development data when formats change. Do not replace an enrolled device/server deployment automatically while developing.
 
 ## Toolchain
 
 | Tool | Version |
 | --- | --- |
-| Go / JDK | 1.27.1 / 17 |
+| Go / JDK | module minimum 1.27.1; CI 1.27.3 / JDK 17 (CI 17.0.21+9) |
 | Gradle / Android Gradle Plugin | 9.3.1 wrapper / 9.1.1, built-in Kotlin 2.2.10 |
 | Android SDK | `platforms;android-37.0`, `build-tools;37.0.0`; min 33, compile/target 37 |
 | Buf / Go generators | 1.70.0 / Protobuf 1.36.12, Connect 1.21.1 |
 | JVM generators | Protobuf 4.36.2, gRPC 1.85.1, Gradle plugin 0.10.0 |
 | Android persistence/scheduling | Room 2.8.5 / WorkManager 2.12.0 |
 
-Set `JAVA_HOME` and `ANDROID_HOME`. Add `$ANDROID_HOME/build-tools/37.0.0` and `$ANDROID_HOME/cmdline-tools/latest/bin` to `PATH`. Verification also uses Python 3, OpenSSL, curl and make. Go sums and Gradle lockfiles pin dependencies; initial builds require downloads.
+Set `JAVA_HOME` and `ANDROID_HOME`. Add `$ANDROID_HOME/build-tools/37.0.0` and `$ANDROID_HOME/cmdline-tools/latest/bin` to `PATH`. Verification also uses Python 3, OpenSSL, curl, make and Docker for the isolated PostgreSQL suite. Go sums and Gradle lockfiles pin dependencies; initial builds require downloads.
 
 ## Commands
 
 ```sh
 make generate       # pinned generators and generated Go
+make check          # repository links, readiness, versions/licenses and boundaries
 make schema         # Buf lint, format and compilation
+make test-postgres  # disposable real PostgreSQL conformance, concurrency and crash/restart
 make test-go        # Go race/storage/transport tests
 make build-go       # SDK and independent example module
 make test-android   # JVM checkpoint, crypto, download, installer and policy tests
@@ -28,11 +30,11 @@ make interop        # real HTTP/HTTPS Go↔Kotlin enrollment/install/policy fixt
 make test-host-update # signed version 1→2 APKs and isolated custom-CA build
 make distribution   # local Go/Maven/source/license archives and manifest checks
 make test-consumers # independent Go module + minified Android Maven hosts
+make test-release-gates # publication gates without building packages
 make test-release   # invalid source/tag/version gates and artifact tampering
 make test-console   # authenticated example flows using a real signed APK
 make docs-audit     # purpose/usage comments in Go, Kotlin and maintainer Python
 make verify
-python3 scripts/check-repository.py
 ./scripts/check-generation.sh
 ```
 
@@ -65,10 +67,14 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory out/site
 
 Open `http://127.0.0.1:8000`. Authored guides live in `website/en/` and `website/vi/`; update both languages. The build extracts Go signatures/comments through its AST, runs pinned Dokka 2.2.0 for Android KDoc, and assembles navigation, language switching, search and API references under `out/site`. Markdown is pinned in `website/requirements.txt`. Generated output is ignored; do not edit it. `make verify` audits method documentation without needing site-renderer dependencies. `make docs` also checks translated pages and local site links.
 
-Handwritten public methods need purpose, contract and concrete usage (platform callbacks explain their invocation). Internal/private methods need purpose comments. Explain non-obvious protocol values, limits and checkpoint/effect ordering; comments describe behavior rather than milestone labels. Generated/third-party source is excluded. The documentation workflow builds PRs and deploys `main` through GitHub Pages once the repository setting is enabled; it does not publish SDK packages.
+Handwritten public methods need purpose, contract and concrete usage (platform callbacks explain their invocation). Internal/private methods need purpose comments. Explain non-obvious protocol values, limits and checkpoint/effect ordering; comments describe behavior rather than milestone labels. Generated/third-party source is excluded. The documentation workflow builds PRs and deploys `main` to the configured GitHub Pages site; it does not publish SDK packages.
 
 ## CI runtime
 
 Workflows share `.github/actions/setup-build`. Actions use the latest stable releases verified at update time, pinned by commit; their JavaScript runtime is Node 24. Dependabot checks for action updates monthly. Hosted jobs explicitly pin Ubuntu 26.04, Go 1.27.3, Temurin 17.0.21+9 and Android command-line tools 23.0 (build 16111833), alongside the project Gradle wrapper and SDK/build-tools versions. Resolve newer compatible releases before updating these pins; do not use floating runner aliases or toolchain selectors.
 
-Go/schema checks, Android integration and package/release checks run concurrently. The required **SDK tests** check succeeds only after every group passes; **Documentation build** remains separately required. Go/Gradle dependency caches are reused, duplicate generation/schema steps are removed, and each HTTP/HTTPS fixture reruns only the test task while retaining compiled dependencies. PRs build the site without uploading a deployment artifact. Merge deployment builds/signs/publishes without tests.
+Go/schema/PostgreSQL checks, Android integration and package/release checks run concurrently. The required **SDK tests** check succeeds only after every group passes; **Documentation build** remains separately required. Go/Gradle dependency caches are reused, duplicate generation/schema steps are removed, and each HTTP/HTTPS fixture reruns only the test task while retaining compiled dependencies. PRs build the site without uploading a deployment artifact. Merge deployment builds/signs/publishes without tests.
+
+The [testing strategy](testing.md) describes source, registry-package and device checks. [Release readiness](release-readiness.md) gates stable versions independently of the [roadmap](../ROADMAP.md).
+
+Current source host and Android additions are documented in [host integration](host-integration.md) and [managed configuration](managed-configuration.md). Build/lint also covers the independent `configuration-app`; it deliberately has no SDK dependency.

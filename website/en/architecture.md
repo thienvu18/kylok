@@ -22,3 +22,6 @@ Each enrollment QR contains a single-use token tied to a management scope. If se
 Kylok keeps requested app and policy state separate from what Android reports as installed or applied. A download, installer callback or policy command is not treated as success on its own: Kylok checks the installed package and version, and reports policy outcomes per rule. Saved work can resume after a network or process interruption.
 
 If you provide your own storage, it must preserve device isolation and durable operations. Status and event callbacks are optional notifications; use your own application storage for records that must become part of a durable business or audit log.
+
+
+Current source provides scoped management reads/correlation, optional PostgreSQL, durable changes/snapshots, immutable Android scheduling options and typed app configuration. See [host contracts](https://github.com/thienvu18/kylok/blob/main/docs/host-integration.md) and [Android configuration](https://github.com/thienvu18/kylok/blob/main/docs/managed-configuration.md).

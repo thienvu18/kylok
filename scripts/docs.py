@@ -15,10 +15,10 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = "https://thienvu18.github.io/kylok"
-PAGES = ["index", "install", "examples", "architecture", "policies", "development", "releases", "compatibility", "api"]
+PAGES = ["index", "install", "examples", "architecture", "policies", "development", "releases", "compatibility", "roadmap", "api"]
 LABELS = {
-    "en": ["Introduction", "Install & integrate", "Example applications", "Architecture & transport", "Policies & kiosk", "Development", "Release packages", "Compatibility", "API reference"],
-    "vi": ["Giới thiệu", "Cài đặt và tích hợp", "Ứng dụng mẫu", "Kiến trúc và kết nối", "Chính sách và kiosk", "Phát triển", "Gói phát hành", "Tương thích", "Tham chiếu API"],
+    "en": ["Introduction", "Install & integrate", "Example applications", "Architecture & transport", "Policies & kiosk", "Development", "Release packages", "Compatibility", "Roadmap", "API reference"],
+    "vi": ["Giới thiệu", "Cài đặt và tích hợp", "Ứng dụng mẫu", "Kiến trúc và kết nối", "Chính sách và kiosk", "Phát triển", "Gói phát hành", "Tương thích", "Lộ trình", "Tham chiếu API"],
 }
 
 
@@ -41,7 +41,7 @@ def audit(records):
             errors.append(location + ": public usage documentation required")
         if re.search(r"\b(?:M[0-6]|Phase\s+\d+)\b", item["doc"]):
             errors.append(location + ": explain purpose instead of a project phase")
-    for folder in ("android/kylok-dpc/src/main", "examples/minimal-dpc/src/main"):
+    for folder in ("android/kylok-dpc/src/main", "examples/minimal-dpc/src/main", "examples/configuration-app/src/main"):
         for path in (ROOT / folder).rglob("*.kt"):
             lines = path.read_text().splitlines()
             internal = bool(re.search(r"^internal (?:object|class|interface|enum|data)", path.read_text(), re.M))

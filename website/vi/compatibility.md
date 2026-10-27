@@ -1,23 +1,13 @@
-# Tương thích và bằng chứng
+# Kiểm định thiết bị hiện tại
 
-Kylok nhắm Android API 33–37, với min SDK 33 và compile/target 37. Đây là dải API dùng để build, không có nghĩa mọi thiết bị hay firmware trong dải này đều đã được chứng nhận. Hãy dùng cặp gói Go và Android cùng một phiên bản; [GitHub Releases](https://github.com/thienvu18/kylok/releases) liệt kê các bản hiện có.
+Mã nguồn nhắm Android API 33–37, min SDK 33 và compile/target SDK 37. Đây là phạm vi build, không phải danh sách thiết bị được hỗ trợ. Khi build từ mã nguồn, dùng cùng revision cho SDK Go và Android.
 
-[Kiểm tra tích hợp SDK](https://github.com/thienvu18/kylok/actions/runs/40282303400) đã thành công ngày 2026-10-26 trên mã nguồn `4e0730f`. Kết quả xác nhận hai SDK hoạt động cùng nhau trong môi trường tự động; đây không phải chứng nhận cho thiết bị Android thật.
+| Thiết bị | Build và mạng | Kết quả quan sát |
+| --- | --- | --- |
+| POCO Pad X1, Xiaomi `25099RP08G`, Android 15 / API 35, HyperOS `OS2.0.205.0.VOZMIXM` | Mã nguồn `d9c375993eb0e4be78f1fa2868ca497ce345bb14`; LAN HTTP tại `192.168.101.5`; Internet vẫn hoạt động | Đăng ký online, cài/cập nhật app đã ký, cấu hình, đồng bộ nền, khôi phục sau khi khởi động lại máy chủ/mất LAN/khởi động lại thiết bị và một số chính sách đã vượt kiểm tra. Chặn gỡ app thất bại dù readback báo `APPLIED`. |
 
-| Bằng chứng | Chứng minh điều gì |
-| --- | --- |
-| Hành vi máy chủ Go | Kiểm tra tự động các luồng đăng ký, phân tách dữ liệu thiết bị, đồng bộ, gán ứng dụng và chính sách. |
-| Giao tiếp Go và Android | Đăng ký có xác thực, tải APK và gửi báo cáo qua HTTP/HTTPS; tác động cài đặt và chính sách trên Android được mô phỏng. |
-| Tích hợp gói Android | AAR build được và tích hợp vào ứng dụng Android độc lập, bao gồm cả bản build minify. |
-| Tích hợp qua gói SDK | Ứng dụng Go và Android độc lập dùng các gói SDK mà không chép mã nguồn SDK vào project. |
-| POCO Pad X1, Android 15 / API 35, HyperOS OS2.0.205.0.VOZMIXM | Một APK phát triển đã thiết lập bằng QR và đăng ký LAN qua HTTP có xác thực, **khi Internet vẫn hoạt động**. |
+## Các kiểm tra còn mở
 
-## Những nội dung còn cần kiểm tra trên thiết bị
+Không thể kiểm tra QR khi chặn WAN vì router không thể tách WAN nhưng vẫn giữ LAN. Kiosk, quyền runtime, thay thế DPC, khôi phục sau force-stop, timeout khóa an toàn, chặn thêm người dùng, origin khác, thu hồi và model/firmware khác vẫn còn mở hoặc chưa kiểm tra. `HostOptions` có kiểm tra tự động nhưng chưa có kết quả trên thiết bị với host consumer.
 
-- Đăng ký thiết bị đã đặt lại khi chặn Internet suốt quá trình thiết lập và tải APK, nhưng vẫn truy cập được máy chủ qua LAN.
-- Cài/cập nhật ứng dụng trên thiết bị thật, gồm cả trường hợp cài thất bại, không tương thích hoặc cần người dùng xác nhận.
-- Phục hồi định danh và công việc còn dang dở sau khi mất mạng, dừng ứng dụng, khởi động lại máy chủ hoặc khởi động lại thiết bị.
-- Cập nhật DPC mà vẫn giữ được Device Owner, định danh thiết bị và kết nối.
-- Áp dụng và gỡ chính sách kiosk, ứng dụng, quyền và giới hạn trên firmware mục tiêu.
-
-Nếu sản phẩm của bạn phụ thuộc vào một trong các luồng này, hãy kiểm tra trên đúng thiết bị, firmware và cấu hình mạng dự kiến sử dụng. Bảo mật QR đăng ký, token, thông tin xác thực và khóa riêng như các bí mật.
+Kiểm tra Android tự động mô phỏng hiệu ứng hệ điều hành, không chứng minh chính sách được OEM thực thi. Xem [báo cáo thiết bị](https://github.com/thienvu18/kylok/blob/main/docs/validation/2026-10-27-poco-pad-x1.md), [checklist vật lý](https://github.com/thienvu18/kylok/blob/main/docs/provisioning.md) và [điều kiện stable](https://github.com/thienvu18/kylok/blob/main/docs/release-readiness.md). Không chia sẻ token, thông tin xác thực hoặc khóa riêng.

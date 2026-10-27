@@ -13,7 +13,7 @@ Set the [JDK/SDK environment](development.md), then run from the repository root
 ./scripts/run-local-server.sh 192.168.101.5 http
 ```
 
-This builds a signed release host and serves APIs/APKs at `http://192.168.101.5:8080`. Preparation reuses signing material and stores immutable APK copies, private environment/data files under `$HOME/.local/share/kylok-local-server/192.168.101.5`. Use fresh development data when schemas change; no migration from older builds is promised. Do not replace a running enrolled-device deployment automatically.
+This builds a signed host and serves APIs/APKs at `http://192.168.101.5:8080`. Preparation reuses signing material and stores immutable APK copies, private environment/data files under `$HOME/.local/share/kylok-local-server/192.168.101.5`. Use fresh development data when schemas change. Do not replace a running enrolled-device deployment automatically.
 
 Allow the listener through the computer firewall and use the same LAN without Wi-Fi client isolation.
 

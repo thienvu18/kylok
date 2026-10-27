@@ -9,6 +9,7 @@ import re
 from importlib.util import module_from_spec, spec_from_file_location
 
 ROOT = Path(__file__).resolve().parents[1]
+READINESS_DOCUMENT = "docs/release-readiness.md"
 spec = spec_from_file_location("kylok_package", ROOT / "scripts/package-release.py")
 package = module_from_spec(spec)
 spec.loader.exec_module(package)
@@ -23,9 +24,12 @@ def validate(tag, clean=True, distribution=None):
     if value != package.version(sdk):
         raise ValueError(f"{tag} does not match {sdk}/VERSION")
     if int(value.split(".", 1)[0]) >= 1 and "-" not in value:
-        release = (ROOT / "ROADMAP.md").read_text().split("## v1 release acceptance", 1)[1]
-        gates = re.findall(r"^- \[([ x])\] \*\*", release, re.M)
-        if len(gates) != 13 or any(gate != "x" for gate in gates):
+        readiness = (ROOT / READINESS_DOCUMENT).read_text()
+        gates = re.findall(r"^- \[([ x])\] \*\*([^*]+)\*\*(.*)$", readiness, re.M)
+        # Keep qualification independent of roadmap headings and reject duplicate or unsupported attestations.
+        if len(gates) != 13 or len({title for _, title, _ in gates}) != 13 or \
+                any(state != "x" or not re.search(r"\[[^\]]+\]\([^)]+\)", evidence)
+                    for state, _, evidence in gates):
             raise ValueError("Stable v1 requires all thirteen release gates, including physical evidence")
     commit = None
     if clean:

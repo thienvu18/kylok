@@ -1,6 +1,8 @@
 # Gói phát hành
 
-Kylok gồm SDK máy chủ Go và thư viện Android. Hãy chọn hai phiên bản tương ứng tại [GitHub Releases](https://github.com/thienvu18/kylok/releases). Go module tải từ kho Go công khai; gói Android có trên Maven Central. API của các bản phát triển có thể thay đổi mà không bảo đảm tương thích ngược.
+Kylok gồm SDK máy chủ Go và thư viện Android. Hãy chọn hai phiên bản tương ứng tại [GitHub Releases](https://github.com/thienvu18/kylok/releases). Go module tải từ kho Go công khai; gói Android có trên Maven Central. Khi build từ mã nguồn, dùng cùng revision cho cả hai SDK.
+
+Xem [trạng thái kiểm định](compatibility.html) để biết bằng chứng thiết bị và [lộ trình](roadmap.html) để biết phần việc hiện tại.
 
 ## Cài đặt phiên bản đã phát hành
 

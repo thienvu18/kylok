@@ -1,6 +1,6 @@
 # Architecture
 
-Kylok consists of an embeddable Go management engine and an Android DPC AAR. The original [design draft](../design.md) supplies project context; this document describes current boundaries. Development contracts may change without compatibility guarantees.
+Kylok consists of an embeddable Go management engine and an Android DPC AAR. This document describes current system boundaries. The [implementation plan](implementation-plan.md) tracks current N1–N4 contracts and planned N5–N7 work. Go and Android SDKs are built from the same source revision.
 
 ```mermaid
 flowchart LR
@@ -49,3 +49,11 @@ APK metadata comes from verified signed content. Managed downloads require devic
 Policy replacement advances the same desired revision as apps. Scope/key binding and current-snapshot observations are transactional; each rule has separate compliance. Android captures original admin settings and attempts before effects, reads effective state afterwards, and restores released controls from its journal. Kiosk waits for exact required app versions/signers; actual locked mode plus a current-boot callback confirms entry. Cached policy repair can run without server access. Hosts must not concurrently mutate those same admin settings.
 
 See [policies](policies.md), [protocol](enrollment-protocol.md) and [manual checks](provisioning.md) for semantics and platform evidence still required.
+
+## Host integration direction
+
+The current facade uses explicit scopes and host authorization. Hosts can keep a mapping from scoped Kylok device IDs to their own external records and wrap SDK calls behind consumer-owned ports. Business identity, assets, authorization and workflows remain outside the SDK. An agent credential never authorizes administrative operations.
+
+Current source includes scoped point reads/domain pages and enrollment correlation, optional PostgreSQL with shared SQL transaction semantics, transaction-bound replayable changes and persisted consistent projection scans. Android provides validated immutable scheduling options and typed managed app configuration with protected baseline/attempt journals. `EventSink` remains a separate best-effort wakeup; loss does not affect the durable feed. No generic privileged policy plugin, group scheduler or remote reboot/lock API is available. See [host contracts](host-integration.md) and [Android configuration](managed-configuration.md).
+
+Do not assume a business transaction and SDK state update commit together. A host persists an intent, invokes Kylok with a stable request key where supported, and reconciles authoritative reads. Future feed/outbox contracts must preserve that recovery boundary and explicitly define retention and resnapshot behavior. See [implementation plan](implementation-plan.md#neutral-integration-boundary).

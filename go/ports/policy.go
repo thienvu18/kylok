@@ -13,13 +13,14 @@ import (
 )
 
 type Policy struct {
-	RequiredPackages        []string          `json:"required_packages,omitempty"`
-	LockTask                *LockTaskPolicy   `json:"lock_task,omitempty"`
-	CameraDisabled          *bool             `json:"camera_disabled,omitempty"`
-	ScreenCaptureDisabled   *bool             `json:"screen_capture_disabled,omitempty"`
-	Restrictions            []RestrictionRule `json:"restrictions,omitempty"`
-	Permissions             []PermissionRule  `json:"permissions,omitempty"`
-	MaximumTimeToLockMillis *int64            `json:"maximum_time_to_lock_millis,omitempty"`
+	ManagedConfigurations   []ManagedConfiguration `json:"managed_configurations,omitempty"`
+	RequiredPackages        []string               `json:"required_packages,omitempty"`
+	LockTask                *LockTaskPolicy        `json:"lock_task,omitempty"`
+	CameraDisabled          *bool                  `json:"camera_disabled,omitempty"`
+	ScreenCaptureDisabled   *bool                  `json:"screen_capture_disabled,omitempty"`
+	Restrictions            []RestrictionRule      `json:"restrictions,omitempty"`
+	Permissions             []PermissionRule       `json:"permissions,omitempty"`
+	MaximumTimeToLockMillis *int64                 `json:"maximum_time_to_lock_millis,omitempty"`
 }
 type LockTaskPolicy struct {
 	Packages     []string `json:"packages"`
@@ -130,6 +131,9 @@ func NormalizePolicy(input Policy) (Policy, error) {
 	if p.MaximumTimeToLockMillis != nil && (*p.MaximumTimeToLockMillis < 0 || *p.MaximumTimeToLockMillis > 86400000) {
 		return p, errors.New("maximum time to lock must be 0–86400000 ms")
 	}
+	if err = normalizeConfigurations(&p); err != nil {
+		return p, err
+	}
 	return p, nil
 }
 
@@ -139,6 +143,9 @@ func NormalizePolicy(input Policy) (Policy, error) {
 // Usage: values := ports.PolicyExpectations(policy, desiredApps).
 func PolicyExpectations(p Policy, apps []DesiredApplication) map[string]string {
 	values := map[string]string{"cleanup": "complete"}
+	for _, config := range p.ManagedConfigurations {
+		values["configuration:"+config.PackageName] = ConfigurationDigest(config.Values)
+	}
 	for _, name := range p.RequiredPackages {
 		values["required:"+name] = "missing_assignment"
 		for _, app := range apps {
@@ -184,6 +191,8 @@ func PolicyExpectations(p Policy, apps []DesiredApplication) map[string]string {
 // Usage: capability := ports.PolicyCapability("camera").
 func PolicyCapability(key string) string {
 	switch {
+	case strings.HasPrefix(key, "configuration:"):
+		return "policy.managed_configuration"
 	case strings.HasPrefix(key, "required:"):
 		return "install_apk"
 	case strings.HasPrefix(key, "permission:"):

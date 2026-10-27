@@ -8,7 +8,7 @@
 Kylok giúp bạn đưa quản lý thiết bị Android vào sản phẩm hiện có mà không phải tự xây lại từ đầu các luồng đăng ký, phân phối ứng dụng và áp dụng chính sách. Bộ SDK gồm **SDK máy chủ Go** cùng **thư viện Android Device Policy Controller (DPC) viết bằng Kotlin**, vận hành trên hạ tầng do bạn làm chủ. Đội ngũ của bạn vẫn quyết định cách phân quyền, vòng đời máy chủ, định danh ứng dụng và khóa ký.
 
 > [!IMPORTANT]
-> Kylok đang trong giai đoạn thử nghiệm. API, schema và cơ sở dữ liệu của các bản phát triển có thể thay đổi mà không bảo đảm tương thích ngược. Xem các gói phát triển hiện có tại [GitHub Releases](https://github.com/thienvu18/kylok/releases). Kiểm tra trên thiết bị thật đến nay xác nhận thiết lập bằng QR và đăng ký LAN có xác thực trên POCO Pad X1 chạy Android 15 / API 35, khi thiết bị vẫn có Internet. Đăng ký ngoại tuyến, cài đặt/khôi phục ứng dụng và áp dụng chính sách trên thiết bị thật vẫn cần được kiểm tra riêng.
+> Kylok đang được phát triển tích cực. Gói Go và Android có trên [Go module proxy](https://proxy.golang.org/github.com/thienvu18/kylok/go) và [Maven Central](https://central.sonatype.com/artifact/io.github.thienvu18.kylok/kylok-dpc). Khi build từ mã nguồn, dùng hai SDK cùng revision. Các điều kiện kiểm định stable vẫn còn mở; xem [trạng thái hiện tại](website/vi/compatibility.md).
 
 ## Bạn có thể xây dựng gì với Kylok?
 
@@ -21,6 +21,23 @@ Kylok giúp bạn đưa quản lý thiết bị Android vào sản phẩm hiện
 - Bắt đầu từ bảng điều khiển web và ứng dụng Android mẫu để thử luồng đăng ký, ứng dụng, chính sách và trạng thái thiết bị.
 
 Kylok là bộ SDK để tích hợp, không phải dịch vụ quản lý thiết bị lưu trữ sẵn trên đám mây: ứng dụng của bạn quyết định cách phân quyền, vận hành máy chủ, đặt application ID và ký ứng dụng. Các ứng dụng mẫu minh họa một cách kết nối những thành phần này. Mã nguồn nhắm Android API 33–37; compile/target SDK là 37. Xem [bằng chứng kiểm thử](website/vi/compatibility.md) để biết những gì đã được xác nhận.
+
+## Đã kiểm tra trên thiết bị Android thật
+
+Mã nguồn hiện tại đã được kiểm tra trên POCO Pad X1 chạy Android 15/API 35 và HyperOS: đăng ký QR khi có Internet, cài/cập nhật APK đã ký, cấu hình ứng dụng được quản lý và khôi phục sau khi gỡ chính sách, đồng bộ nền, khởi động lại máy chủ, mất mạng LAN và khởi động lại thiết bị. Máy chủ cũng từ chối yêu cầu trùng có nội dung khác và yêu cầu hạ phiên bản ứng dụng. Đã kiểm tra thêm chính sách camera, ảnh chụp màn hình và tài khoản. Bằng chứng áp dụng cho đúng thiết bị, firmware và build trong báo cáo. Android vẫn cho gỡ ứng dụng dù máy chủ báo chính sách chặn đã áp dụng, nên chức năng này chưa được xác nhận trên firmware đó. Xem [báo cáo thiết bị](docs/validation/2026-10-27-poco-pad-x1.md) và [trạng thái hiện tại](docs/compatibility.md).
+
+## Cài đặt SDK
+
+```sh
+go get github.com/thienvu18/kylok/go@v0.1.0-dev.40316176224
+```
+
+```kotlin
+repositories { mavenCentral() }
+dependencies { implementation("io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev.40316176224") }
+```
+
+Không cần tài khoản registry để tải các gói công khai. Xem [hướng dẫn tích hợp](website/vi/install.md) để chuẩn bị APK, HTTP/2 và vòng đời ứng dụng. Mã nguồn phát triển hiện đã có [PostgreSQL/luồng thay đổi](docs/host-integration.md) và [cấu hình Android/ứng dụng được quản lý](docs/managed-configuration.md); cần build từ mã nguồn cho đến khi có bản phát hành gói tiếp theo.
 
 ## Trải nghiệm ứng dụng mẫu
 

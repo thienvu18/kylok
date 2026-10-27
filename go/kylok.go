@@ -21,6 +21,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"connectrpc.com/connect"
@@ -69,17 +70,17 @@ type SDK struct {
 	bootstrapURL  string
 	clock         func() time.Time
 	closeStore    func() error
+	closed        atomic.Bool
 	closeOnce     sync.Once
 	closeErr      error
 	allowDebugAPK bool
 	events        *eventDispatcher
 }
-type Device = ports.Device
-type Inventory = ports.Inventory
 type Enrollment struct {
-	Token     string
-	ScopeID   string
-	ExpiresAt time.Time
+	CorrelationID string
+	Token         string
+	ScopeID       string
+	ExpiresAt     time.Time
 }
 
 var idPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`)
@@ -177,6 +178,7 @@ func New(ctx context.Context, o Options) (_ *SDK, err error) {
 // Usage: defer sdk.Close() after draining host listeners; hosts close supplied stores separately.
 func (s *SDK) Close() error {
 	s.closeOnce.Do(func() {
+		s.closed.Store(true)
 		s.events.close()
 		if s.closeStore != nil {
 			s.closeErr = s.closeStore()
@@ -200,19 +202,31 @@ func hash(value string) []byte { h := sha256.Sum256([]byte(value)); return h[:] 
 // CreateEnrollment creates a single-use token bound to the authorized scope and current verified DPC APK.
 // Usage: enrollment, err := sdk.CreateEnrollment(ctx, scope, 15*time.Minute).
 func (s *SDK) CreateEnrollment(ctx context.Context, scope string, ttl time.Duration) (Enrollment, error) {
-	if !idPattern.MatchString(scope) || ttl < time.Minute || ttl > 24*time.Hour {
-		return Enrollment{}, errors.New("scope required; TTL must be 1 minute to 24 hours")
+	return s.CreateEnrollmentWithOptions(ctx, EnrollmentOptions{ScopeID: scope, TTL: ttl})
+}
+
+// CreateEnrollmentWithOptions creates an opaque correlation binding and a private single-use token.
+// Nonempty correlation IDs are unique in their scope, including after consumption/expiry.
+// Duplicate creation returns ErrConflict, never the original token. If the creation response
+// is lost, use a new correlation ID and let the unclaimed token expire; no read exposes it.
+// Usage: e, err := sdk.CreateEnrollmentWithOptions(ctx, EnrollmentOptions{ScopeID: scope, TTL: 15*time.Minute, CorrelationID: requestID}).
+func (s *SDK) CreateEnrollmentWithOptions(ctx context.Context, input EnrollmentOptions) (Enrollment, error) {
+	if err := s.checkOpen(ctx); err != nil {
+		return Enrollment{}, err
+	}
+	if !idPattern.MatchString(input.ScopeID) || input.TTL < time.Minute || input.TTL > 24*time.Hour || (input.CorrelationID != "" && !idPattern.MatchString(input.CorrelationID)) {
+		return Enrollment{}, fmt.Errorf("%w: scope/correlation invalid; TTL must be 1 minute to 24 hours", ErrInvalidArgument)
 	}
 	token, err := secret()
 	if err != nil {
 		return Enrollment{}, err
 	}
-	expiry := s.clock().UTC().Add(ttl).Truncate(time.Millisecond)
-	e := ports.Enrollment{TokenHash: hash(token), ScopeID: scope, ExpiresAt: expiry, ArtifactSHA256: s.bootstrap.Metadata().SHA256}
-	if err := s.store.CreateEnrollment(ctx, e); err != nil {
+	expiry := s.clock().UTC().Add(input.TTL).Truncate(time.Millisecond)
+	e := ports.Enrollment{TokenHash: hash(token), ScopeID: input.ScopeID, ExpiresAt: expiry, ArtifactSHA256: s.bootstrap.Metadata().SHA256, CorrelationID: input.CorrelationID}
+	if err = s.store.CreateEnrollment(ctx, e); err != nil {
 		return Enrollment{}, err
 	}
-	return Enrollment{Token: token, ScopeID: scope, ExpiresAt: expiry}, nil
+	return Enrollment{Token: token, ScopeID: input.ScopeID, ExpiresAt: expiry, CorrelationID: input.CorrelationID}, nil
 }
 
 // QR renders private provisioning JSON using this host's configured API and bootstrap origins.
@@ -226,6 +240,9 @@ func (s *SDK) QR(ctx context.Context, token string) ([]byte, error) {
 // Changing a QR does not change an already enrolled device's endpoint.
 // Usage: payload, err := sdk.QRWithOrigins(ctx, token, "http://192.168.1.5:8080", "http://192.168.1.5:8080").
 func (s *SDK) QRWithOrigins(ctx context.Context, token, apiOrigin, bootstrapOrigin string) ([]byte, error) {
+	if err := s.checkOpen(ctx); err != nil {
+		return nil, err
+	}
 	apiOrigin, err := provisioning.Origin(apiOrigin)
 	if err != nil {
 		return nil, err
@@ -253,16 +270,26 @@ func (s *SDK) QRWithOrigins(ctx context.Context, token, apiOrigin, bootstrapOrig
 // Usage: devices, err := sdk.ListDevices(ctx, scope, "", 100).
 func (s *SDK) ListDevices(ctx context.Context, scope, after string, limit int) ([]Device, error) {
 	if !idPattern.MatchString(scope) || limit < 1 || limit > 100 {
-		return nil, errors.New("scope required; limit must be 1–100")
+		return nil, invalidArgument("scope required; limit must be 1–100")
 	}
-	return s.store.ListDevices(ctx, scope, after, limit)
+	if err := s.checkOpen(ctx); err != nil {
+		return nil, err
+	}
+	if after != "" && !devicePattern.MatchString(after) {
+		return nil, ErrInvalidArgument
+	}
+	values, err := s.store.ListDevices(ctx, scope, after, limit)
+	return publicDevices(values), err
 }
 
 // RevokeDevice rejects future authenticated activity and recovery for one authorized scope/device.
 // Usage: err := sdk.RevokeDevice(ctx, scope, deviceID).
 func (s *SDK) RevokeDevice(ctx context.Context, scope, id string) error {
+	if err := s.checkOpen(ctx); err != nil {
+		return err
+	}
 	if !idPattern.MatchString(scope) || !devicePattern.MatchString(id) {
-		return errors.New("scope and device ID required")
+		return invalidArgument("scope and device ID required")
 	}
 	err := s.store.Revoke(ctx, scope, id)
 	if err == nil {
@@ -282,6 +309,10 @@ func (s *SDK) Handler() http.Handler {
 	mux.Handle("/bootstrap/", s.bootstrapHandler())
 	mux.Handle("/artifacts/", s.applicationHandler())
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.closed.Load() {
+			http.Error(w, "SDK closed", http.StatusServiceUnavailable)
+			return
+		}
 		if strings.HasPrefix(s.origin, "https://") && r.TLS == nil {
 			http.Error(w, "HTTPS required", http.StatusUpgradeRequired)
 			return
@@ -296,6 +327,10 @@ func (s *SDK) Handler() http.Handler {
 func (s *SDK) BootstrapHandler() http.Handler {
 	handler := s.bootstrapHandler()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.closed.Load() {
+			http.Error(w, "SDK closed", http.StatusServiceUnavailable)
+			return
+		}
 		if strings.HasPrefix(s.bootstrapURL, "https://") && r.TLS == nil {
 			http.Error(w, "HTTPS required", http.StatusUpgradeRequired)
 			return
@@ -309,6 +344,10 @@ func (s *SDK) bootstrapHandler() http.Handler {
 	// Keep already-issued bootstrap URLs valid after a host APK upgrade/restart.
 	// Only empty-scope catalog entries are public; managed app bytes stay authorized.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.closed.Load() {
+			http.Error(w, "SDK closed", http.StatusServiceUnavailable)
+			return
+		}
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			w.Header().Set("Allow", "GET, HEAD")
 			w.WriteHeader(http.StatusMethodNotAllowed)

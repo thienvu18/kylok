@@ -10,6 +10,7 @@ import (
 )
 
 var (
+	ErrInvalidArgument = errors.New("invalid argument")
 	ErrNotFound        = errors.New("not found")
 	ErrExpired         = errors.New("enrollment expired")
 	ErrConsumed        = errors.New("enrollment consumed by another attempt")
@@ -37,6 +38,7 @@ type InstalledApplication struct {
 	SigningCertificates []string `json:"signing_certificates"`
 }
 type Device struct {
+	CorrelationID    string    `json:"correlation_id,omitempty"`
 	ID               string    `json:"id"`
 	ScopeID          string    `json:"scope_id"`
 	State            string    `json:"state"`
@@ -47,6 +49,7 @@ type Device struct {
 	ReportedRevision uint64    `json:"reported_revision"`
 }
 type Enrollment struct {
+	CorrelationID  string
 	TokenHash      []byte
 	ScopeID        string
 	ExpiresAt      time.Time
@@ -75,7 +78,37 @@ type Attempt struct {
 // Sync binds policy observations to its replay body and the desired snapshot;
 // stale observations cannot establish current compliance. GetPolicy reads a
 // consistent scoped desired/reported/compliance view. See portstest.Policies.
+// DeviceQuery is a live keyset read. Mutable filters are evaluated at read time;
+// inserts behind After need a new scan. CorrelationID is an exact opaque match.
+type DeviceQuery struct {
+	ScopeID, After, State, CorrelationID string
+	Limit                                int
+}
+
+// OperationQuery filters a single authorized device's live operation history.
+type OperationQuery struct {
+	ScopeID, DeviceID, After, State string
+	Limit                           int
+	Now                             time.Time
+}
+
 type StateStore interface {
+	ChangeStore
+	// Check verifies that the persistence backend is reachable without changing state.
+	// Usage: err := store.Check(ctx).
+	Check(context.Context) error
+	// GetDevice returns one scoped identity, never its credential verifier.
+	// Usage: device, err := store.GetDevice(ctx, scope, deviceID).
+	GetDevice(context.Context, string, string) (Device, error)
+	// QueryDevices reads an exact scoped live page; callers own returned values.
+	// Usage: devices, err := store.QueryDevices(ctx, DeviceQuery{ScopeID: scope, Limit: 20}).
+	QueryDevices(context.Context, DeviceQuery) ([]Device, error)
+	// GetOperation expires overdue work and reads one operation belonging to the scoped device.
+	// Usage: operation, err := store.GetOperation(ctx, scope, deviceID, operationID, now).
+	GetOperation(context.Context, string, string, string, time.Time) (Operation, error)
+	// QueryOperations expires overdue work and reads a scoped, state-filtered live page.
+	// Usage: operations, err := store.QueryOperations(ctx, OperationQuery{ScopeID: scope, DeviceID: deviceID, Limit: 20, Now: now}).
+	QueryOperations(context.Context, OperationQuery) ([]Operation, error)
 	// Persist a verifier-only enrollment bound to scope, expiry and bootstrap bytes.
 	// Usage: err := store.CreateEnrollment(ctx, enrollment).
 	CreateEnrollment(context.Context, Enrollment) error

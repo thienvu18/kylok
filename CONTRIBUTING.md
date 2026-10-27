@@ -1,14 +1,16 @@
 # Contributing to Kylok
 
-Read the [architecture](docs/architecture.md), [roadmap](ROADMAP.md), and [development guide](docs/development.md). The project is experimental; APIs and local data formats may change without backward compatibility until release.
+Read the [architecture](docs/architecture.md), [roadmap](ROADMAP.md), and [development guide](docs/development.md). Kylok is in active development; use the current source contracts and fresh development data when schemas change.
 
 Use `dev` for the current development integration branch and open a PR into `main` to run the required checks.
 
-For substantial work, open an [issue](https://github.com/thienvu18/kylok/issues) describing the problem, scope, milestone and observable outcome. Keep SDKs independent of consumers and preserve authentication, scope, persistence, integrity and idempotency guarantees.
+For substantial work, open an [issue](https://github.com/thienvu18/kylok/issues) describing the problem, scope and observable outcome. Keep SDKs independent of consumers and preserve authentication, scope, persistence, integrity and idempotency guarantees.
 
-Run the relevant automated checks; `make verify` covers both SDKs, independent package consumers, schemas, HTTP/HTTPS interoperability and release failure gates. A PR should explain the resulting behavior, verification and remaining limits. Update current docs instead of appending conversational history or duplicate plans. Keep version files and [release artifacts](docs/releases.md) consistent.
+Run the relevant automated checks; `make verify` includes `make check` and covers both SDKs, independent package consumers, schemas, HTTP/HTTPS interoperability and release failure gates. A PR should explain the behavior, verification and remaining limits. Keep docs concise and current, and avoid duplicate plans. Keep version files and [release artifacts](docs/releases.md) consistent.
 
 Document each handwritten method's purpose and public usage; explain non-obvious limits and effect/checkpoint ordering. Comments describe behavior rather than project milestones. `make docs-audit` checks method documentation; `make docs` generates API references and the English/Vietnamese site. Update both localized guides when a user flow changes; see [documentation development](docs/development.md#documentation).
+
+Follow the [testing strategy](docs/testing.md); stable publication uses [release readiness](docs/release-readiness.md), independently of roadmap completion.
 
 For physical behavior, record model/API/firmware, APK digest, source/build identity, transport, network conditions and results. Distinguish unit/JVM, emulator and physical evidence. Never publish QR tokens, credentials, private signing material or personal device data.
 

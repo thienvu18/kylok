@@ -1,6 +1,8 @@
 # Release packages
 
-Kylok is released as a Go server SDK and an Android library. Choose matching versions from [GitHub Releases](https://github.com/thienvu18/kylok/releases). Go packages are available from the public Go module proxy; Android packages are on Maven Central. Development releases may change without backward compatibility.
+Kylok packages a Go server SDK and an Android library. Choose matching versions from [GitHub Releases](https://github.com/thienvu18/kylok/releases). Go packages are available from the public Go module proxy; Android packages are on Maven Central. Build both SDKs from the same source revision.
+
+See [current validation](compatibility.html) for device evidence and the [roadmap](roadmap.html) for current work.
 
 ## Install a published version
 

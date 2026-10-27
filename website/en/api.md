@@ -29,3 +29,5 @@ If you are adding Kylok to a product, start with the [integration guide](install
 | Show SDK/device diagnostics | `Kylok.status`, `sdkVersion`, `protocolVersion` |
 
 `AgentStatus` tells your app which app versions are requested and which are installed, the outcome of each policy rule, and any pending install progress. It does not expose enrollment tokens, credentials or private keys.
+
+Current source also documents scoped reads/correlation, PostgreSQL, durable changes and `HostOptions`/typed managed configuration. See [host integration](https://github.com/thienvu18/kylok/blob/main/docs/host-integration.md) and [Android configuration](https://github.com/thienvu18/kylok/blob/main/docs/managed-configuration.md); generated references below follow current source.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check documentation links, milestone gates and SDK/example dependency direction."""
+"""Check documentation links, release readiness and SDK/example dependency direction."""
 # SPDX-License-Identifier: LGPL-3.0-only
 from pathlib import Path
 import hashlib
@@ -10,7 +10,7 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 errors = []
-docs = [ROOT / name for name in ("README.md", "ROADMAP.md", "CONTRIBUTING.md", "AGENTS.md")]
+docs = [ROOT / name for name in ("README.md", "README.vi.md", "ROADMAP.md", "CONTRIBUTING.md", "AGENTS.md")]
 docs += sorted((ROOT / "docs").rglob("*.md"))
 docs += [ROOT / "tests/contracts/README.md"]
 docs += [ROOT / "go/README.md"]
@@ -54,11 +54,15 @@ for path in docs:
             errors.append(f"{path.relative_to(ROOT)}: missing anchor {target}")
 
 roadmap = (ROOT / "ROADMAP.md").read_text()
-if len(re.findall(r"^### M[0-6] —", roadmap, re.M)) != 7:
-    errors.append("Roadmap must retain milestones M0–M6")
-release = roadmap.split("## v1 release acceptance", 1)[1]
-if len(re.findall(r"^- \[[ x]\] \*\*", release, re.M)) != 13:
-    errors.append("Roadmap must retain the thirteen v1 release gates")
+for document in ("docs/implementation-plan.md", "docs/compatibility.md"):
+    if document not in roadmap:
+        errors.append(f"Roadmap must link {document}")
+readiness = (ROOT / "docs/release-readiness.md").read_text()
+gates = re.findall(r"^- \[([ x])\] \*\*([^*]+)\*\*(.*)$", readiness, re.M)
+if len(gates) != 13 or len({title for _, title, _ in gates}) != 13:
+    errors.append("Stable release readiness must retain thirteen distinct acceptance gates")
+if any(state == "x" and not re.search(r"\[[^\]]+\]\([^)]+\)", evidence) for state, _, evidence in gates):
+    errors.append("Checked stable release gates require evidence links")
 if hashlib.sha256((ROOT / "design.md").read_bytes()).hexdigest() != "a36c0ae3622001ef944f1229bf97d58d3bdde2c098d73c8cdab5763a5c4088ac":
     errors.append("Original design.md changed; preserve the source draft")
 if "LGPL-3.0-only" not in (ROOT / "NOTICE").read_text():
@@ -93,4 +97,4 @@ for path in (ROOT / "android/kylok-dpc/src/main").rglob("*.kt"):
 
 if errors:
     raise SystemExit("\n".join(errors))
-print(f"Checked {len(docs)} Markdown documents, {links} local links/anchors, milestone/license consistency and SDK boundaries.")
+print(f"Checked {len(docs)} Markdown documents, {links} local links/anchors, readiness/license consistency and SDK boundaries.")

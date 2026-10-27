@@ -14,6 +14,7 @@ import java.util.concurrent.Executors
 class InstallResultReceiver : BroadcastReceiver() {
     /** Persist only a callback matching the journaled session, then schedule observed reconciliation. Usage: Android invokes the explicit PackageInstaller result PendingIntent. */
     override fun onReceive(context: Context, intent: Intent) {
+        Kylok.initialize()
         val pending = goAsync()
         executor.execute {
             try {

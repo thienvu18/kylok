@@ -10,4 +10,12 @@
 
 [Chạy ứng dụng mẫu](examples.html) · [Tích hợp SDK](install.html) · [Xem tham chiếu API](api.html)
 
-> **Đang thử nghiệm.** Các gói phát triển hiện có được liệt kê tại [GitHub Releases](https://github.com/thienvu18/kylok/releases). API và dữ liệu của các bản phát triển có thể thay đổi mà không bảo đảm tương thích ngược. Build tự động không chứng minh SDK hoạt động trên mọi thiết bị Android; xem [bằng chứng đã ghi nhận](compatibility.html).
+## Tính năng đã kiểm tra trên thiết bị thật
+
+<div class="features"><article><h3>Đăng ký Device Owner</h3><p>Thiết lập QR khi có Internet đã đăng ký POCO thành thiết bị được quản lý và đồng bộ xác thực qua LAN HTTP.</p></article><article><h3>Phân phối ứng dụng đã ký</h3><p>Ứng dụng đã ký được cài/cập nhật từ v1 lên v2 với đúng package và signer. Máy chủ từ chối lần thử lại đổi nội dung và yêu cầu hạ phiên bản.</p></article><article><h3>Cấu hình ứng dụng được quản lý</h3><p>Ứng dụng mẫu độc lập nhận giá trị có kiểu, đổi tiêu đề/nút làm mới và trở về mặc định sau khi gỡ chính sách.</p></article><article><h3>Đồng bộ và khôi phục</h3><p>Đã quan sát đồng bộ nền sau một đêm. Đồng bộ thủ công khôi phục sau khi khởi động lại máy chủ và kết nối lại LAN; sau khi khởi động lại offline, đồng bộ tiếp tục khi bật Wi-Fi mà không cần mở Kylok.</p></article><article><h3>Một số điều khiển thiết bị</h3><p>Camera, ảnh chụp màn hình và sửa tài khoản bị chặn rồi khôi phục; giới hạn debugging đã ẩn Developer options.</p></article></div>
+
+Đây là bằng chứng trên một thiết bị với build nguồn được ghi trong báo cáo, không phải tuyên bố hỗ trợ mọi thiết bị. Android vẫn cho gỡ ứng dụng dù chính sách chặn gỡ đã được báo áp dụng. Đăng ký khi chặn WAN, kiosk và quyền runtime chưa được kiểm định. Xem [báo cáo đầy đủ](compatibility.html).
+
+> **Đang thử nghiệm.** Các gói hiện có được liệt kê tại [GitHub Releases](https://github.com/thienvu18/kylok/releases). Khi build từ mã nguồn, dùng hai SDK cùng revision. Build tự động không chứng minh SDK hoạt động trên mọi thiết bị Android; xem [trạng thái kiểm định](compatibility.html).
+
+Mã nguồn hiện tại có tích hợp host, PostgreSQL, đồng bộ bền vững và cấu hình ứng dụng được quản lý. [Lộ trình](roadmap.html) theo dõi vận hành fleet, quản lý mạng và kiểm định thiết bị.

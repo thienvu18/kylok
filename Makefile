@@ -1,4 +1,4 @@
-.PHONY: generate schema test-go build-go test-android build-android interop test-host-update distribution test-consumers test-release test-console docs docs-audit verify
+.PHONY: generate schema check test-go test-postgres build-go test-android build-android interop test-host-update distribution test-consumers test-release test-release-gates test-console docs docs-audit verify
 
 generate:
 	./scripts/generate.sh
@@ -6,9 +6,15 @@ generate:
 schema:
 	./scripts/check-schema.sh
 
+check:
+	python3 scripts/check-repository.py
+
 test-go:
 	cd go && GOWORK=off go test -race ./...
 	cd examples/minimal-server && GOWORK=off go test ./...
+
+test-postgres:
+	./scripts/test-postgres.sh
 
 build-go:
 	cd go && GOWORK=off go build ./...
@@ -18,7 +24,7 @@ test-android:
 	./android/gradlew -p android :kylok-dpc:testDebugUnitTest
 
 build-android:
-	./android/gradlew -p android :kylok-dpc:assembleRelease :minimal-dpc:assembleDebug :kylok-dpc:lintDebug :minimal-dpc:lintDebug
+	./android/gradlew -p android :kylok-dpc:assembleRelease :minimal-dpc:assembleDebug :kylok-dpc:lintDebug :minimal-dpc:lintDebug :configuration-app:assembleDebug :configuration-app:lintDebug
 
 interop:
 	./scripts/test-interop.sh https
@@ -42,6 +48,9 @@ test-release: distribution
 	python3 scripts/test-release.py
 	python3 scripts/release-assets.py out/release
 
+test-release-gates:
+	python3 scripts/test-release.py CheckoutIntegrity AutomaticPublication ReleaseGates
+
 docs-audit:
 	python3 scripts/docs.py audit
 
@@ -49,4 +58,4 @@ docs: docs-audit
 	./android/gradlew -p android :kylok-dpc:dokkaGeneratePublicationHtml
 	.tools/docs-venv/bin/python scripts/docs.py build
 
-verify: generate schema docs-audit test-go build-go test-android build-android interop test-host-update test-console test-consumers test-release
+verify: generate schema check docs-audit test-go test-postgres build-go test-android build-android interop test-host-update test-console test-consumers test-release

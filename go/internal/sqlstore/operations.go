@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-package sqlite
+package sqlstore
 
 import (
 	"bytes"
@@ -61,6 +61,9 @@ func (s *Store) RegisterArtifact(ctx context.Context, a ports.Artifact) error {
 		return err
 	}
 	if _, err = tx.ExecContext(ctx, "INSERT INTO artifacts(scope_id,digest,data) VALUES(?,?,?)", a.ScopeID, a.SHA256, data); err != nil {
+		return err
+	}
+	if err = recordChange(ctx, tx, a.ScopeID, "application_changed", a.SHA256); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -127,6 +130,9 @@ func (s *Store) RemoveArtifact(ctx context.Context, scope, digest string) error 
 	if _, err = tx.ExecContext(ctx, "DELETE FROM artifacts WHERE scope_id=? AND digest=?", scope, digest); err != nil {
 		return err
 	}
+	if err = recordChange(ctx, tx, scope, "application_removed", digest); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 
@@ -146,17 +152,20 @@ func operation(ctx context.Context, q queryer, id string) (ports.Operation, erro
 }
 
 // Persist an operation and its indexed state together so queries agree with its JSON record.
-func saveOperation(ctx context.Context, tx *sql.Tx, op ports.Operation) error {
+func saveOperation(ctx context.Context, tx *transaction, op ports.Operation) error {
 	data, err := json.Marshal(op)
 	if err != nil {
 		return err
 	}
 	_, err = tx.ExecContext(ctx, "UPDATE operations SET state=?,data=? WHERE id=?", op.State, data, op.ID)
-	return err
+	if err != nil {
+		return err
+	}
+	return deviceChanged(ctx, tx, op.DeviceID)
 }
 
 // Read pending work in deterministic revision order before leasing or expiry decisions.
-func activeOperations(ctx context.Context, tx *sql.Tx, deviceID string) ([]ports.Operation, error) {
+func activeOperations(ctx context.Context, tx *transaction, deviceID string) ([]ports.Operation, error) {
 	rows, err := tx.QueryContext(ctx, "SELECT data FROM operations WHERE device_id=? AND state IN ('QUEUED','RUNNING','WAITING_USER') ORDER BY revision,id", deviceID)
 	if err != nil {
 		return nil, err
@@ -178,7 +187,7 @@ func activeOperations(ctx context.Context, tx *sql.Tx, deviceID string) ([]ports
 }
 
 // Fail operations whose host-selected deadline passed without manufacturing an observed success.
-func expire(ctx context.Context, tx *sql.Tx, deviceID string, now time.Time) error {
+func expire(ctx context.Context, tx *transaction, deviceID string, now time.Time) error {
 	ops, err := activeOperations(ctx, tx, deviceID)
 	if err != nil {
 		return err
@@ -255,7 +264,7 @@ func (s *Store) Assign(ctx context.Context, a ports.Assignment) (ports.Operation
 	if err != nil {
 		return op, err
 	}
-	_, err = tx.ExecContext(ctx, "INSERT INTO operations(id,device_id,package_name,artifact_sha256,state,revision,idempotency_key,data) VALUES(?,?,?,?,?,?,?,?)", op.ID, a.DeviceID, apk.PackageName, apk.SHA256, op.State, op.Revision, a.IdempotencyKey, data)
+	_, err = tx.ExecContext(ctx, "INSERT INTO operations(id,ordinal,device_id,package_name,artifact_sha256,state,revision,idempotency_key,data) VALUES(?,(SELECT COALESCE(MAX(ordinal),0)+1 FROM operations),?,?,?,?,?,?,?)", op.ID, a.DeviceID, apk.PackageName, apk.SHA256, op.State, op.Revision, a.IdempotencyKey, data)
 	if err != nil {
 		return op, err
 	}
@@ -265,6 +274,9 @@ func (s *Store) Assign(ctx context.Context, a ports.Assignment) (ports.Operation
 	}
 	if _, err = tx.ExecContext(ctx, "UPDATE devices SET desired_revision=? WHERE id=?", op.Revision, a.DeviceID); err != nil {
 		return op, err
+	}
+	if err = deviceChanged(ctx, tx, a.DeviceID); err != nil {
+		return ports.Operation{}, err
 	}
 	return op, tx.Commit()
 }
@@ -362,7 +374,7 @@ func sameInstalled(observed *ports.InstalledApplication, a ports.Artifact) bool 
 }
 
 // Deduplicate and bind a report to its assigned operation/lease before accepting an observed outcome.
-func applyReport(ctx context.Context, tx *sql.Tx, device string, r ports.OperationReport) (ports.ReportReceipt, error) {
+func applyReport(ctx context.Context, tx *transaction, device string, r ports.OperationReport) (ports.ReportReceipt, error) {
 	data, err := json.Marshal(r)
 	if err != nil {
 		return ports.ReportReceipt{}, err
@@ -494,7 +506,7 @@ func (s *Store) Sync(ctx context.Context, in ports.SyncInput) (ports.Snapshot, e
 			continue
 		}
 		var data []byte
-		err = tx.QueryRowContext(ctx, "SELECT data FROM operations WHERE device_id=? AND revision=? ORDER BY rowid DESC LIMIT 1", in.DeviceID, desired.Revision).Scan(&data)
+		err = tx.QueryRowContext(ctx, "SELECT data FROM operations WHERE device_id=? AND revision=? ORDER BY ordinal DESC LIMIT 1", in.DeviceID, desired.Revision).Scan(&data)
 		if err != nil {
 			return empty, err
 		}
@@ -524,7 +536,7 @@ func (s *Store) Sync(ctx context.Context, in ports.SyncInput) (ports.Snapshot, e
 		if err != nil {
 			return empty, err
 		}
-		_, err = tx.ExecContext(ctx, "INSERT INTO operations(id,device_id,package_name,artifact_sha256,state,revision,idempotency_key,data) VALUES(?,?,?,?,?,?,?,?)", id, in.DeviceID, desired.Artifact.PackageName, desired.Artifact.SHA256, op.State, op.Revision, "reconcile-"+id, data)
+		_, err = tx.ExecContext(ctx, "INSERT INTO operations(id,ordinal,device_id,package_name,artifact_sha256,state,revision,idempotency_key,data) VALUES(?,(SELECT COALESCE(MAX(ordinal),0)+1 FROM operations),?,?,?,?,?,?,?)", id, in.DeviceID, desired.Artifact.PackageName, desired.Artifact.SHA256, op.State, op.Revision, "reconcile-"+id, data)
 		if err != nil {
 			return empty, err
 		}
@@ -579,7 +591,7 @@ func (s *Store) Sync(ctx context.Context, in ports.SyncInput) (ports.Snapshot, e
 				compliance.State, compliance.Reason = "UNSUPPORTED", "INSTALL_CAPABILITY_MISSING"
 			}
 			var data []byte
-			err = tx.QueryRowContext(ctx, "SELECT data FROM operations WHERE device_id=? AND revision=? ORDER BY rowid DESC LIMIT 1", in.DeviceID, want.Revision).Scan(&data)
+			err = tx.QueryRowContext(ctx, "SELECT data FROM operations WHERE device_id=? AND revision=? ORDER BY ordinal DESC LIMIT 1", in.DeviceID, want.Revision).Scan(&data)
 			if err != nil {
 				return empty, err
 			}
@@ -613,6 +625,9 @@ func (s *Store) Sync(ctx context.Context, in ports.SyncInput) (ports.Snapshot, e
 	}
 	_, err = tx.ExecContext(ctx, "UPDATE devices SET inventory=?,state='MANAGED',last_seen_at=?,reported_revision=?,sync_sequence=?,sync_hash=?,sync_snapshot=? WHERE id=?", inventory, in.Now.UnixMilli(), in.ReportedRevision, in.Sequence, sum[:], cached, in.DeviceID)
 	if err != nil {
+		return empty, err
+	}
+	if err = deviceChanged(ctx, tx, in.DeviceID); err != nil {
 		return empty, err
 	}
 	if err = tx.Commit(); err != nil {

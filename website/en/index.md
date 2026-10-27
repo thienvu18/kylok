@@ -10,4 +10,12 @@ The example web console walks through enrollment, APK assignment and policy chan
 
 [Run the examples](examples.html) · [Integrate the SDK](install.html) · [Browse the API reference](api.html)
 
-> **Experimental.** Available development packages are listed in [GitHub Releases](https://github.com/thienvu18/kylok/releases). Development contracts may change without migration. Automated builds do not establish support for a particular Android device; see the [recorded evidence](compatibility.html).
+## Working features, checked on a real device
+
+<div class="features"><article><h3>Device Owner enrollment</h3><p>Online QR setup registered the POCO as a managed device and completed authenticated sync over LAN HTTP.</p></article><article><h3>Signed app deployment</h3><p>A signed app installed and updated from v1 to v2 with the expected package and signer. The server rejected a changed retry and a requested downgrade.</p></article><article><h3>Managed app configuration</h3><p>The independent sample app received typed values, changed its title and refresh control, and returned to defaults after policy release.</p></article><article><h3>Sync and recovery</h3><p>Background sync was observed after overnight idle. Manual sync recovered after server restart and ordinary LAN reconnection; after offline reboot, sync resumed when Wi-Fi returned without opening Kylok.</p></article><article><h3>Selected device controls</h3><p>Camera, screenshots and account modification were blocked and restored; the debugging restriction hid Developer options.</p></article></div>
+
+This is one-device evidence for the recorded source build, not a general device-support claim. Android allowed the configured app to be uninstalled despite an applied uninstall restriction. WAN-isolated enrollment, kiosk and runtime permissions remain unqualified. See the [full record](compatibility.html).
+
+> **Experimental.** Available packages are listed in [GitHub Releases](https://github.com/thienvu18/kylok/releases). Build Go and Android SDKs from the same source revision. Automated builds do not establish support for a particular Android device; see the [current validation](compatibility.html).
+
+The current source includes host integration, PostgreSQL, reliable synchronization and managed app configuration. The [roadmap](roadmap.html) tracks fleet operations, managed networks and device qualification.

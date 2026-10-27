@@ -42,8 +42,7 @@ jobs:
       - name: Go, schemas, documentation contracts and package boundaries
         if: matrix.suite == 'go'
         run: |
-          make schema docs-audit test-go build-go
-          python3 scripts/check-repository.py
+          make schema check docs-audit test-go test-postgres build-go
       - name: Android builds, both transport fixtures, host updates and console
         if: matrix.suite == 'android'
         run: make build-android interop test-host-update test-console

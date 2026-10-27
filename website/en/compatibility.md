@@ -1,23 +1,13 @@
-# Compatibility and evidence
+# Current device validation
 
-Kylok targets Android API 33–37, with min SDK 33 and compile/target 37. This is the supported build range, not a certification for every device or firmware in that range. Use the Go and Android packages from the same release; [GitHub Releases](https://github.com/thienvu18/kylok/releases) lists available versions.
+The source targets Android API 33–37, with min SDK 33 and compile/target SDK 37. This is a build range, not a device support list. Go and Android SDKs should be built from the same source revision.
 
-[SDK integration checks](https://github.com/thienvu18/kylok/actions/runs/40282303400) passed on 2026-10-26 for source `4e0730f`. They confirm the Go and Android packages work together in automated environments; they do not certify a physical Android device.
+| Device | Build and network | Observed result |
+| --- | --- | --- |
+| POCO Pad X1, Xiaomi `25099RP08G`, Android 15 / API 35, HyperOS `OS2.0.205.0.VOZMIXM` | Source `d9c375993eb0e4be78f1fa2868ca497ce345bb14`; LAN HTTP at `192.168.101.5`; Internet available | Online enrollment, signed app install/update, configuration, background sync, server/LAN/reboot recovery and selected policies passed. Uninstall prevention failed despite `APPLIED` readback. |
 
-| Evidence | What it proves |
-| --- | --- |
-| Go server behavior | Enrollment, device scoping, sync, app assignments and policy operations are covered by automated checks. |
-| Go and Android communication | Authenticated enrollment, APK downloads and reports work over HTTP/HTTPS; Android installation and policy effects are simulated. |
-| Android package integration | The AAR builds and works in independent Android apps, including a minified app build. |
-| Package-based integration | Independent Go and Android apps consume the published SDK packages without copying SDK source into their projects. |
-| POCO Pad X1, Android 15 / API 35, HyperOS OS2.0.205.0.VOZMIXM | One development APK completed QR setup and authenticated LAN enrollment over HTTP, **with internet available**. |
+## Remaining checks
 
-## What still needs testing on devices
+WAN-blocked QR enrollment could not be tested because the router cannot isolate WAN while keeping LAN access. Kiosk, runtime permissions, DPC replacement, process force-stop recovery, secure lock timeout, Add user enforcement, alternate origins, revocation and other models/firmware remain open or untested. `HostOptions` has automated coverage but no physical consumer-host result.
 
-- Enroll a reset device with internet blocked throughout setup and APK download while keeping the management server reachable on the LAN.
-- Install and update apps on a real device, including failed, incompatible and user-confirmed installations.
-- Recover device identity and unfinished work after network loss, process termination, server restart and device reboot.
-- Update the DPC while keeping Device Owner status, device identity and connectivity.
-- Apply and release kiosk, app, permission and restriction policies on the target firmware.
-
-If your deployment depends on one of these scenarios, verify it on the exact device, firmware and network setup you intend to use. Treat enrollment QR codes, tokens, credentials and private keys as secrets.
+Automated Android tests simulate operating-system effects; they do not prove OEM enforcement. See the [detailed device report](https://github.com/thienvu18/kylok/blob/main/docs/validation/2026-10-27-poco-pad-x1.md), [physical checklist](https://github.com/thienvu18/kylok/blob/main/docs/provisioning.md) and [stable readiness gates](https://github.com/thienvu18/kylok/blob/main/docs/release-readiness.md). Keep tokens, credentials and private keys out of shared evidence.

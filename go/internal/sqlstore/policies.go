@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-only
-package sqlite
+package sqlstore
 
 import (
 	"bytes"
@@ -15,7 +15,7 @@ import (
 )
 
 // Join current desired app revisions to scoped verified metadata within a consistent transaction.
-func desiredApplications(ctx context.Context, tx *sql.Tx, d ports.Device) ([]ports.DesiredApplication, error) {
+func desiredApplications(ctx context.Context, tx *transaction, d ports.Device) ([]ports.DesiredApplication, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT a.data,w.revision FROM desired_apps w LEFT JOIN artifacts a ON a.scope_id=? AND a.digest=w.artifact_sha256 WHERE w.device_id=? ORDER BY w.package_name`, d.ScopeID, d.ID)
 	if err != nil {
 		return nil, err
@@ -95,11 +95,14 @@ func (s *Store) SetPolicy(ctx context.Context, input ports.PolicyAssignment) (po
 	if _, err = tx.ExecContext(ctx, "UPDATE devices SET desired_revision=? WHERE id=?", want.Revision, d.ID); err != nil {
 		return empty, err
 	}
+	if err = deviceChanged(ctx, tx, d.ID); err != nil {
+		return empty, err
+	}
 	return want, tx.Commit()
 }
 
 // Accept only current-snapshot observations and derive per-rule compliance independently of assignment.
-func policyStatus(ctx context.Context, tx *sql.Tx, d ports.Device, apps []ports.DesiredApplication, incoming *ports.PolicyReport) (ports.PolicyStatus, error) {
+func policyStatus(ctx context.Context, tx *transaction, d ports.Device, apps []ports.DesiredApplication, incoming *ports.PolicyReport) (ports.PolicyStatus, error) {
 	var status ports.PolicyStatus
 	var data, reported []byte
 	err := tx.QueryRowContext(ctx, "SELECT data,reported FROM policies WHERE device_id=?", d.ID).Scan(&data, &reported)
@@ -192,7 +195,7 @@ func policyStatus(ctx context.Context, tx *sql.Tx, d ports.Device, apps []ports.
 			}
 		}
 		for name, absent := range missing {
-			if absent && strings.HasPrefix(r.RuleID, "permission:"+name+":") {
+			if absent && (strings.HasPrefix(r.RuleID, "permission:"+name+":") || r.RuleID == "configuration:"+name) {
 				r.State, r.Reason = "PENDING", "REQUIRED_APP_PENDING"
 			}
 		}

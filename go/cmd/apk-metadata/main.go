@@ -14,10 +14,15 @@ import (
 // Inspect a signed APK through public provisioning APIs and emit metadata for host tooling.
 func main() {
 	path := flag.String("apk", "", "signed APK to verify and inspect")
+	application := flag.Bool("application", false, "inspect an ordinary managed app instead of requiring DPC components")
 	signer := flag.String("apksigner", "apksigner", "Android SDK apksigner executable")
 	analyzer := flag.String("apkanalyzer", "apkanalyzer", "Android SDK apkanalyzer executable")
 	flag.Parse()
-	apk, err := provisioning.Inspect(context.Background(), *path, provisioning.Tools{APKSigner: *signer, APKAnalyzer: *analyzer})
+	inspect := provisioning.Inspect
+	if *application {
+		inspect = provisioning.InspectApplication
+	}
+	apk, err := inspect(context.Background(), *path, provisioning.Tools{APKSigner: *signer, APKAnalyzer: *analyzer})
 	if err != nil {
 		log.Fatal(err)
 	}

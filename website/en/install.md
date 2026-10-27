@@ -1,17 +1,17 @@
 # Install and integrate
 
-Kylok is a pair of libraries: a Go SDK for your server and an Android Device Policy Controller (DPC) library for your device app. Choose matching Go and Android versions from the same release. Your applications continue to own business authorization, server lifecycle, Android application ID and signing.
+Kylok is a pair of libraries: a Go SDK for your server and an Android Device Policy Controller (DPC) library for your device app. Use matching Go and Android versions. Your applications own business authorization, server lifecycle, Android application ID and signing.
 
 ## Obtain packages
 
-Choose a version from [GitHub Releases](https://github.com/thienvu18/kylok/releases). The Go module is public, and the Android library is available from Maven Central; neither requires read credentials. Development packages may change without backward compatibility, so use them only with the matching release pair.
+Choose the current package versions from [GitHub Releases](https://github.com/thienvu18/kylok/releases). The Go module is public, and the Android library is available from Maven Central; neither requires read credentials. Keep both SDKs on the same version/source revision.
 
 ## Go host
 
 Add the Go SDK to your server module:
 
 ```sh
-go get github.com/thienvu18/kylok/go@vVERSION
+go get github.com/thienvu18/kylok/go@v0.1.0-dev.40316176224
 ```
 
 Inspect the signed Android host APK, create the SDK and mount its handler on your server:
@@ -41,7 +41,7 @@ repositories {
     mavenCentral()
 }
 dependencies {
-    implementation("io.github.thienvu18.kylok:kylok-dpc:VERSION")
+    implementation("io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev.40316176224")
 }
 ```
 
@@ -57,3 +57,5 @@ Kylok.retry(context) // schedules sync; read the result separately
 ```
 
 Open `Kylok.confirmPendingInstall` only after a user action when Android requests install confirmation. Status callbacks are read-only notifications; they cannot approve policies or bypass authentication. See the [API reference](api.html) and [example flows](examples.html).
+
+The current source also provides [host integration](https://github.com/thienvu18/kylok/blob/main/docs/host-integration.md) and [Android app configuration](https://github.com/thienvu18/kylok/blob/main/docs/managed-configuration.md) APIs.

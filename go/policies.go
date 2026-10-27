@@ -3,7 +3,6 @@ package kylok
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	v1 "github.com/thienvu18/kylok/go/gen/kylok/v1"
@@ -16,18 +15,25 @@ type PermissionRule = ports.PermissionRule
 type RestrictionRule = ports.RestrictionRule
 type DesiredPolicy = ports.DesiredPolicy
 type PolicyStatus = ports.PolicyStatus
+type ManagedConfiguration = ports.ManagedConfiguration
+type ConfigurationBundle = ports.ConfigurationBundle
+type ConfigurationEntry = ports.ConfigurationEntry
+type ConfigurationValue = ports.ConfigurationValue
 
 // SetPolicy replaces this device's policy. Required packages must already have
 // scoped APK assignments; callers authorize scope/device before calling the SDK.
 // An empty document releases only settings captured by Kylok's policy journal.
 // Usage: desired, err := sdk.SetPolicy(ctx, scope, deviceID, requestKey, policy).
 func (s *SDK) SetPolicy(ctx context.Context, scope, device, key string, p Policy) (DesiredPolicy, error) {
+	if err := s.checkOpen(ctx); err != nil {
+		return DesiredPolicy{}, err
+	}
 	if !idPattern.MatchString(scope) || !devicePattern.MatchString(device) || !idPattern.MatchString(key) {
-		return DesiredPolicy{}, errors.New("scope/device/idempotency key required")
+		return DesiredPolicy{}, invalidArgument("scope/device/idempotency key required")
 	}
 	p, err := ports.NormalizePolicy(p)
 	if err != nil {
-		return DesiredPolicy{}, err
+		return DesiredPolicy{}, invalidArgument(err.Error())
 	}
 	want, err := s.store.SetPolicy(ctx, ports.PolicyAssignment{ScopeID: scope, DeviceID: device, IdempotencyKey: key, Policy: p})
 	if err == nil {
@@ -39,8 +45,11 @@ func (s *SDK) SetPolicy(ctx context.Context, scope, device, key string, p Policy
 // GetPolicy reads scoped desired/reported policy and per-rule compliance without treating assignment as enforcement.
 // Usage: status, err := sdk.GetPolicy(ctx, scope, deviceID).
 func (s *SDK) GetPolicy(ctx context.Context, scope, device string) (PolicyStatus, error) {
+	if err := s.checkOpen(ctx); err != nil {
+		return PolicyStatus{}, err
+	}
 	if !idPattern.MatchString(scope) || !devicePattern.MatchString(device) {
-		return PolicyStatus{}, errors.New("scope/device required")
+		return PolicyStatus{}, invalidArgument("scope/device required")
 	}
 	return s.store.GetPolicy(ctx, scope, device)
 }
@@ -48,6 +57,9 @@ func (s *SDK) GetPolicy(ctx context.Context, scope, device string) (PolicyStatus
 // Preserve optional setting presence and typed permission states when encoding the policy document.
 func policyMessage(p ports.Policy) *v1.Policy {
 	m := &v1.Policy{RequiredPackages: p.RequiredPackages, CameraDisabled: p.CameraDisabled, ScreenCaptureDisabled: p.ScreenCaptureDisabled, MaximumTimeToLockMillis: p.MaximumTimeToLockMillis}
+	for _, config := range p.ManagedConfigurations {
+		m.ManagedConfigurations = append(m.ManagedConfigurations, &v1.ManagedConfiguration{PackageName: config.PackageName, Values: ports.ConfigurationMessage(config.Values)})
+	}
 	if p.LockTask != nil {
 		m.LockTask = &v1.LockTaskPolicy{Packages: p.LockTask.Packages, KioskPackage: p.LockTask.KioskPackage}
 	}

@@ -22,3 +22,6 @@ Mỗi QR đăng ký chứa một token chỉ dùng một lần và gắn với p
 Kylok phân biệt ứng dụng và chính sách được yêu cầu với những gì Android báo đã cài hoặc đã áp dụng. Tải xong, nhận callback cài đặt hay gửi lệnh chính sách chưa đủ để báo thành công: SDK kiểm tra gói/phiên bản thực tế và trả kết quả riêng cho từng quy tắc chính sách. Công việc đã lưu có thể tiếp tục sau khi mất mạng hoặc ứng dụng bị dừng.
 
 Nếu dùng bộ lưu trữ riêng, bạn cần bảo đảm dữ liệu giữa các thiết bị không lẫn với nhau và các thao tác được lưu bền vững. Callback trạng thái/sự kiện chỉ là thông báo bổ sung; hãy lưu bằng hệ thống của ứng dụng nếu cần đưa thông tin đó vào nhật ký nghiệp vụ hoặc audit lâu dài.
+
+
+Mã nguồn hiện tại có API đọc/liên kết theo phạm vi, PostgreSQL tùy chọn, luồng thay đổi/snapshot bền vững, tùy chọn lịch Android bất biến và cấu hình ứng dụng theo kiểu rõ ràng. Các chức năng này mới hơn gói đầu tiên đã phát hành. Xem [hợp đồng host](https://github.com/thienvu18/kylok/blob/main/docs/host-integration.md) và [cấu hình Android](https://github.com/thienvu18/kylok/blob/main/docs/managed-configuration.md).
