@@ -1,0 +1,1 @@
+Network CA fixtures are public self-signed certificate bytes for unit tests. Private keys are generated in a temporary directory and discarded. They are not production trust anchors. Tests use the certificates' validity interval as their clock.

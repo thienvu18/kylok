@@ -1,6 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: LGPL-3.0-only
 set -eu
+umask 077
 cd "$(dirname "$0")/.."
 task_root=$PWD
 test_mode=${1:-https}
@@ -28,12 +29,19 @@ PY
 )
 if [ "$test_mode" = https ]; then test_origin="https://localhost:$test_port"; else test_origin="http://127.0.0.1:$test_port"; fi
 openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=localhost \
-    -addext 'subjectAltName=DNS:localhost' -keyout "$test_dir/tls.key" -out "$test_dir/tls.crt" 2>"$test_dir/openssl.log"
+    -addext 'subjectAltName=DNS:localhost' -addext 'basicConstraints=critical,CA:TRUE' -keyout "$test_dir/tls.key" -out "$test_dir/tls.crt" 2>"$test_dir/openssl.log"
 "$test_dir/server" enroll -public-url "$test_origin" -apk "$test_apk" \
     -allow-debug-apk -data "$test_dir/data" -scope interop -out "$test_dir/enrollment"
+python3 - "$test_dir/network-secrets.json" <<'SECRETS'
+import json,sys
+from pathlib import Path
+path=Path(sys.argv[1])
+path.write_text(json.dumps({"interop":{"wifi-v1":"jvm-passphrase"}}))
+path.chmod(0o600)
+SECRETS
 "$test_dir/server" serve -public-url "$test_origin" -apk "$test_apk" \
     -allow-debug-apk -data "$test_dir/data" -listen "127.0.0.1:$test_port" \
-    -tls-cert "$test_dir/tls.crt" -tls-key "$test_dir/tls.key" >"$test_dir/server.log" 2>&1 &
+    -tls-cert "$test_dir/tls.crt" -tls-key "$test_dir/tls.key" -network-secrets "$test_dir/network-secrets.json" >"$test_dir/server.log" 2>&1 &
 server_pid=$!
 attempt=0
 while ! curl --silent --fail --cacert "$test_dir/tls.crt" "$test_origin/$(python3 - "$test_dir/enrollment.json" <<'PY'
@@ -49,7 +57,7 @@ done
 cmp "$test_apk" "$test_dir/download.apk"
 # Each fresh server fixture must execute tests again, while compiled dependencies remain reusable.
 KYLOK_INTEROP_QR="$test_dir/enrollment.json" KYLOK_INTEROP_CERT="$test_dir/tls.crt" \
-    KYLOK_INTEROP_SERVER="$test_dir/server" KYLOK_INTEROP_DATA="$test_dir/data" KYLOK_INTEROP_APK="$test_apk" \
+    KYLOK_INTEROP_SECRETS="$test_dir/network-secrets.json" KYLOK_INTEROP_SERVER="$test_dir/server" KYLOK_INTEROP_DATA="$test_dir/data" KYLOK_INTEROP_APK="$test_apk" \
     android/gradlew -p android :kylok-dpc:testDebugUnitTest --rerun
 "$test_dir/server" list -public-url "$test_origin" -apk "$test_apk" \
     -allow-debug-apk -data "$test_dir/data" -scope interop > "$test_dir/devices.json"

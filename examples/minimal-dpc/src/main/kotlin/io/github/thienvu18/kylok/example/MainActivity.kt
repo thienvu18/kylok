@@ -19,6 +19,8 @@ import java.util.Date
 class MainActivity : Activity() {
     // Match only this Activity's LAN prompt when Android delivers the permission result.
     private val lanPermissionRequest = 10
+    // Keep the optional managed-network prompt separate from normal enrollment/LAN permission.
+    private val networkPermissionRequest = 11
     private lateinit var content: LinearLayout
     private lateinit var header: TextView
     private var subscription: Closeable? = null
@@ -57,10 +59,10 @@ class MainActivity : Activity() {
     /** Preserve navigation only; protected agent data stays in the AAR. Usage: invoked by Android before recreation. */
     override fun onSaveInstanceState(outState: Bundle) { outState.putInt("page", page); super.onSaveInstanceState(outState) }
 
-    /** Schedule a new attempt after a LAN grant. Usage: Android invokes the runtime permission callback. */
+    /** Schedule a new attempt after a host-approved LAN or network observation grant. Usage: Android invokes the runtime permission callback. */
     override fun onRequestPermissionsResult(code: Int, permissions: Array<out String>, results: IntArray) {
         super.onRequestPermissionsResult(code, permissions, results)
-        if (code == lanPermissionRequest) { Kylok.retry(this); refresh() }
+        if (code == lanPermissionRequest || code == networkPermissionRequest) { Kylok.retry(this); refresh() }
     }
 
     /** Refresh local observations without pretending a requested network sync has completed. */
@@ -100,6 +102,13 @@ class MainActivity : Activity() {
                 if (Build.VERSION.SDK_INT >= 37 && !status.lanPermissionGranted) content.addView(button(getString(R.string.allow_lan)) {
                     requestPermissions(arrayOf(Manifest.permission.ACCESS_LOCAL_NETWORK), lanPermissionRequest)
                 })
+                status.network?.let { network ->
+                    card(getString(R.string.managed_network), getString(R.string.network_values, network.revision, network.state, network.reason.ifBlank { "—" }, network.activeProfileId.ifBlank { "—" }, network.connectivityVerified.toString(), network.cleanupComplete.toString()))
+                    if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED ||
+                        checkSelfPermission(Manifest.permission.NEARBY_WIFI_DEVICES) != android.content.pm.PackageManager.PERMISSION_GRANTED) content.addView(button(getString(R.string.allow_network)) {
+                        requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.NEARBY_WIFI_DEVICES), networkPermissionRequest)
+                    })
+                }
                 if (status.operations.any { it.requiresUserAction }) content.addView(button(getString(R.string.confirm_install)) { Kylok.confirmPendingInstall(this) })
             }
             1 -> {
@@ -114,7 +123,8 @@ class MainActivity : Activity() {
             }
             3 -> {
                 content.addView(text(getString(R.string.operations_help)))
-                if (status.operations.isEmpty()) card(getString(R.string.operations), getString(R.string.no_operations))
+                status.commands.forEach { command -> card(command.kind, getString(R.string.command_values, command.state, command.errorCode.ifBlank { "—" }, command.id)) }
+                if (status.operations.isEmpty() && status.commands.isEmpty()) card(getString(R.string.operations), getString(R.string.no_operations))
                 status.operations.forEach { operation ->
                     card(operation.packageName, getString(R.string.operation_values, operation.stage, operation.version, operation.downloadedBytes, operation.sizeBytes, operation.error.ifBlank { "—" }, operation.id))
                     content.addView(ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {

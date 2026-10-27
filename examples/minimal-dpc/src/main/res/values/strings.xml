@@ -33,4 +33,15 @@
     <string name="sdk_values">SDK: %1$s\nProtocol: %2$d\nHost application: %3$s\nLicense: LGPL-3.0-only</string>
     <string name="observation_limits">Reading this dashboard</string>
     <string name="limits_help">App inventory is from the last authenticated sync. Policy and operation progress comes from protected local state. Check server compliance for acknowledged results. Physical Android behavior requires device verification.</string>
+    <string name="managed_network">Managed network</string>
+    <string name="allow_network">Allow Wi-Fi management permissions</string>
+    <string name="network_values">Revision: %1$d
+State: %2$s
+Reason: %3$s
+Active profile: %4$s
+Desired route verified: %5$s
+Cleanup complete: %6$s</string>
+    <string name="command_values">State: %1$s
+Reason: %2$s
+Command: %3$s</string>
 </resources>

@@ -46,7 +46,7 @@ func writeSecret(path string, data []byte) error {
 // Validate CLI intent and configuration before choosing a local management action or starting host-owned listeners.
 func run() error {
 	if len(os.Args) < 2 {
-		return errors.New("usage: minimal-server serve|enroll|list|revoke|register|assign|operations|remove|set-policy|policy [flags]")
+		return errors.New("usage: minimal-server <command> [flags]; see docs/local-server.md for enrollment, applications, policy, fleet and network commands")
 	}
 	command := os.Args[1]
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
@@ -64,19 +64,20 @@ func run() error {
 	scope := flags.String("scope", "", "authorized scope ID")
 	ttl := flags.Duration("ttl", 15*time.Minute, "enrollment token lifetime (1m–24h)")
 	out := flags.String("out", "", "new QR output prefix; creates .json and .png, mode 0600")
-	after := flags.String("after", "", "list cursor: last device ID")
-	id := flags.String("device", "", "device ID to revoke")
+	after := flags.String("after", "", "opaque page cursor; list uses the last device ID")
+	id := flags.String("device", "", "managed device ID")
 	appPath := flags.String("application-apk", "", "signed single/universal application APK")
 	digest := flags.String("digest", "", "registered application SHA-256")
 	requestKey := flags.String("request-key", "", "assignment idempotency key")
-	timeout := flags.Duration("timeout", 24*time.Hour, "installation deadline (1m–7d)")
+	timeout := flags.Duration("timeout", 24*time.Hour, "installation/command timeout (1m–7d)")
 	policyPath := flags.String("policy", "", "policy JSON file; an empty document releases Kylok controls")
 	consoleListen := flags.String("ui-listen", "", "optional administrator UI bind address, e.g. 127.0.0.1:8081")
 	consoleTokenPath := flags.String("ui-token-file", "", "private administrator token file; defaults to data/console-token")
+	extra := registerFleetFlags(flags)
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
 	}
-	if command != "serve" && command != "enroll" && command != "list" && command != "revoke" && command != "register" && command != "assign" && command != "operations" && command != "remove" && command != "set-policy" && command != "policy" {
+	if command != "serve" && command != "enroll" && command != "list" && command != "revoke" && command != "register" && command != "assign" && command != "operations" && command != "remove" && command != "set-policy" && command != "policy" && !extra.accepts(command) {
 		return errors.New("unknown command")
 	}
 	origin, err := provisioning.Origin(*public)
@@ -106,11 +107,18 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	sdk, err := kylok.New(ctx, kylok.Options{PublicURL: *public, Bootstrap: apk, DataDir: *data, AllowDebugAPK: *allowDebug, BootstrapURL: *bootstrapURL})
+	secrets, err := loadNetworkSecrets(*extra.secrets)
+	if err != nil {
+		return err
+	}
+	sdk, err := kylok.New(ctx, kylok.Options{NetworkSecrets: secrets, PublicURL: *public, Bootstrap: apk, DataDir: *data, AllowDebugAPK: *allowDebug, BootstrapURL: *bootstrapURL})
 	if err != nil {
 		return err
 	}
 	defer sdk.Close()
+	if handled, err := runFleetCommand(ctx, sdk, command, *scope, *id, *digest, *requestKey, *after, *timeout, extra); handled {
+		return err
+	}
 	switch command {
 	case "set-policy":
 		f, err := os.Open(*policyPath)

@@ -59,3 +59,7 @@ Kylok.retry(context) // lên lịch đồng bộ; đọc kết quả riêng sau 
 Chỉ gọi `Kylok.confirmPendingInstall` sau thao tác của người dùng khi Android yêu cầu xác nhận cài đặt. Callback trạng thái chỉ để đọc; chúng không phê duyệt chính sách hay bỏ qua xác thực. Xem [tham chiếu API](api.html) và [luồng ứng dụng mẫu](examples.html).
 
 Mã nguồn hiện tại có API [tích hợp host](https://github.com/thienvu18/kylok/blob/main/docs/host-integration.md) và [cấu hình Android](https://github.com/thienvu18/kylok/blob/main/docs/managed-configuration.md).
+
+## Quyền và secret cho quản lý mạng
+
+Quản lý mạng là tùy chọn. Host cấp quyền vị trí chính xác và thiết bị Wi-Fi ở gần, giữ một SSID khôi phục độc lập và cung cấp secret reference theo scope có giá trị bất biến qua `Options.NetworkSecrets`. Dashboard Android mẫu chỉ hiện lời nhắc quyền khi có network policy. CLI cục bộ có `set-network`/`network`, thao tác fleet và lệnh một lần. Xem [vòng đời mạng](https://github.com/thienvu18/kylok/blob/main/docs/managed-network.md) và [lệnh CLI](https://github.com/thienvu18/kylok/blob/main/docs/local-server.md). Các luồng có kiểm tra phần mềm và cần kiểm định thiết bị thật.

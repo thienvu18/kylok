@@ -18,6 +18,7 @@ var (
 	ErrRevoked         = errors.New("device revoked")
 	ErrUnauthorized    = errors.New("invalid device credential")
 	ErrConflict        = errors.New("conflicting idempotency payload")
+	ErrUnsupported     = errors.New("device capability unsupported")
 	ErrStale           = errors.New("stale sync sequence")
 	ErrReferenced      = errors.New("artifact is referenced by desired state or pending work")
 )
@@ -94,6 +95,9 @@ type OperationQuery struct {
 
 type StateStore interface {
 	ChangeStore
+	FleetStore
+	CommandStore
+	NetworkStore
 	// Check verifies that the persistence backend is reachable without changing state.
 	// Usage: err := store.Check(ctx).
 	Check(context.Context) error
@@ -174,7 +178,7 @@ type Artifact struct {
 }
 type Assignment struct {
 	ScopeID, DeviceID, ArtifactSHA256, IdempotencyKey, OperationID string
-	Now, Deadline                                                  time.Time
+	Now, NotBefore, Deadline                                       time.Time
 }
 type DesiredApplication struct {
 	Artifact Artifact `json:"artifact"`
@@ -189,6 +193,7 @@ type Operation struct {
 	LeaseID         string                `json:"lease_id"`
 	LeaseUntil      time.Time             `json:"lease_until"`
 	Deadline        time.Time             `json:"deadline"`
+	NotBefore       time.Time             `json:"not_before"`
 	Attempts        int                   `json:"attempts"`
 	ReportSequence  uint64                `json:"report_sequence"`
 	DownloadedBytes int64                 `json:"downloaded_bytes"`
@@ -216,24 +221,31 @@ type ApplicationCompliance struct {
 	Reason      string `json:"reason"`
 }
 type SyncInput struct {
-	DeviceID         string
-	CredentialHash   []byte
-	Inventory        Inventory
-	Sequence         uint64
-	ReportedRevision uint64
-	Reports          []OperationReport
-	PolicyReport     *PolicyReport
-	Now              time.Time
+	DeviceID             string
+	CredentialHash       []byte
+	Inventory            Inventory
+	Sequence             uint64
+	ReportedRevision     uint64
+	RetainedOperationIDs []string
+	CommandReports       []CommandReport
+	Reports              []OperationReport
+	NetworkReport        *NetworkReport
+	PolicyReport         *PolicyReport
+	Now                  time.Time
 }
 type Snapshot struct {
-	Device           Device                  `json:"device"`
-	Sequence         uint64                  `json:"sequence"`
-	Desired          []DesiredApplication    `json:"desired"`
-	Operations       []Operation             `json:"operations"`
-	Receipts         []ReportReceipt         `json:"receipts"`
-	Compliance       []ApplicationCompliance `json:"compliance"`
-	DesiredPolicy    *DesiredPolicy          `json:"desired_policy,omitempty"`
-	PolicyCompliance []PolicyResult          `json:"policy_compliance"`
+	Network             NetworkStatus           `json:"network"`
+	Device              Device                  `json:"device"`
+	Sequence            uint64                  `json:"sequence"`
+	Desired             []DesiredApplication    `json:"desired"`
+	Operations          []Operation             `json:"operations"`
+	Commands            []Command               `json:"commands"`
+	CommandReceipts     []string                `json:"command_receipts"`
+	StoppedOperationIDs []string                `json:"stopped_operation_ids"`
+	Receipts            []ReportReceipt         `json:"receipts"`
+	Compliance          []ApplicationCompliance `json:"compliance"`
+	DesiredPolicy       *DesiredPolicy          `json:"desired_policy,omitempty"`
+	PolicyCompliance    []PolicyResult          `json:"policy_compliance"`
 }
 
 type ReadSeekCloser interface {

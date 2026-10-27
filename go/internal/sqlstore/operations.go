@@ -112,6 +112,13 @@ func (s *Store) RemoveArtifact(ctx context.Context, scope, digest string) error 
 	if _, err = artifact(ctx, tx, scope, digest); err != nil {
 		return err
 	}
+	var pending int
+	if err = tx.QueryRowContext(ctx, "SELECT count(*) FROM fleet_assignments WHERE scope_id=? AND artifact_sha256=? AND pending=1", scope, digest).Scan(&pending); err != nil {
+		return err
+	}
+	if pending != 0 {
+		return ports.ErrReferenced
+	}
 	var count int
 	err = tx.QueryRowContext(ctx, `SELECT count(*) FROM desired_apps a JOIN devices d ON d.id=a.device_id WHERE d.scope_id=? AND a.artifact_sha256=?`, scope, digest).Scan(&count)
 	if err != nil {
@@ -213,6 +220,15 @@ func (s *Store) Assign(ctx context.Context, a ports.Assignment) (ports.Operation
 		return ports.Operation{}, err
 	}
 	defer tx.Rollback()
+	op, err := assign(ctx, tx, a)
+	if err != nil {
+		return op, err
+	}
+	return op, tx.Commit()
+}
+
+// Apply one assignment within the caller's serialized transaction so fleet progress commits with its device effects.
+func assign(ctx context.Context, tx *transaction, a ports.Assignment) (ports.Operation, error) {
 	d, _, err := scanDevice(tx.QueryRowContext(ctx, "SELECT "+deviceColumns+" FROM devices WHERE scope_id=? AND id=?", a.ScopeID, a.DeviceID))
 	if err != nil {
 		return ports.Operation{}, err
@@ -227,13 +243,16 @@ func (s *Store) Assign(ctx context.Context, a ports.Assignment) (ports.Operation
 		if e != nil {
 			return op, e
 		}
-		if op.Artifact.SHA256 != a.ArtifactSHA256 {
+		if op.Artifact.SHA256 != a.ArtifactSHA256 || !op.NotBefore.Equal(a.NotBefore) || !a.NotBefore.IsZero() && !op.Deadline.Equal(a.Deadline) {
 			return op, ports.ErrConflict
 		}
 		return op, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return ports.Operation{}, err
+	}
+	if !a.Now.Before(a.Deadline) || !a.NotBefore.IsZero() && !a.NotBefore.Before(a.Deadline) {
+		return ports.Operation{}, ports.ErrInvalidArgument
 	}
 	apk, err := artifact(ctx, tx, a.ScopeID, a.ArtifactSHA256)
 	if err != nil {
@@ -244,7 +263,7 @@ func (s *Store) Assign(ctx context.Context, a ports.Assignment) (ports.Operation
 		return ports.Operation{}, err
 	}
 	if count >= 64 {
-		return ports.Operation{}, errors.New("device desired application limit (64) reached")
+		return ports.Operation{}, ports.ErrInvalidArgument
 	}
 	ops, err := activeOperations(ctx, tx, a.DeviceID)
 	if err != nil {
@@ -259,7 +278,7 @@ func (s *Store) Assign(ctx context.Context, a ports.Assignment) (ports.Operation
 			}
 		}
 	}
-	op := ports.Operation{ID: a.OperationID, DeviceID: a.DeviceID, Artifact: apk, Revision: d.DesiredRevision + 1, State: "QUEUED", Deadline: a.Deadline}
+	op := ports.Operation{ID: a.OperationID, DeviceID: a.DeviceID, Artifact: apk, Revision: d.DesiredRevision + 1, State: "QUEUED", NotBefore: a.NotBefore, Deadline: a.Deadline}
 	data, err := json.Marshal(op)
 	if err != nil {
 		return op, err
@@ -278,7 +297,7 @@ func (s *Store) Assign(ctx context.Context, a ports.Assignment) (ports.Operation
 	if err = deviceChanged(ctx, tx, a.DeviceID); err != nil {
 		return ports.Operation{}, err
 	}
-	return op, tx.Commit()
+	return op, nil
 }
 
 // ListOperations expires overdue work and returns a scoped cursor page of durable results.
@@ -348,7 +367,7 @@ func (s *Store) AuthorizeDownload(ctx context.Context, id string, hash []byte, o
 	if err != nil {
 		return ports.Artifact{}, ports.ErrNotFound
 	}
-	if op.DeviceID != id || op.Artifact.ScopeID != d.ScopeID || op.Artifact.SHA256 != digest || op.LeaseID != lease || lease == "" || !now.Before(op.Deadline) || !now.Before(op.LeaseUntil) || (op.State != "RUNNING" && op.State != "WAITING_USER") {
+	if op.DeviceID != id || op.Artifact.ScopeID != d.ScopeID || op.Artifact.SHA256 != digest || op.LeaseID != lease || lease == "" || now.Before(op.NotBefore) || !now.Before(op.Deadline) || !now.Before(op.LeaseUntil) || (op.State != "RUNNING" && op.State != "WAITING_USER") {
 		return ports.Artifact{}, ports.ErrUnauthorized
 	}
 	return artifact(ctx, tx, d.ScopeID, digest)
@@ -405,7 +424,7 @@ func applyReport(ctx context.Context, tx *transaction, device string, r ports.Op
 	case op.State == "SUPERSEDED":
 		receipt.Accepted = true
 		receipt.Reason = "SUPERSEDED"
-	case op.State == "SUCCEEDED" || op.State == "FAILED":
+	case op.State == "SUCCEEDED" || op.State == "FAILED" || op.State == "CANCELLED":
 		receipt.Accepted = true
 		receipt.Reason = "TERMINAL"
 	case op.LeaseID == "" || op.LeaseID != r.LeaseID:
@@ -453,11 +472,14 @@ func (s *Store) Sync(ctx context.Context, in ports.SyncInput) (ports.Snapshot, e
 		return empty, ports.ErrRevoked
 	}
 	payload, _ := json.Marshal(struct {
-		Sequence, Revision uint64
-		Inventory          ports.Inventory
-		Reports            []ports.OperationReport
-		PolicyReport       *ports.PolicyReport
-	}{in.Sequence, in.ReportedRevision, in.Inventory, in.Reports, in.PolicyReport})
+		Sequence, Revision   uint64
+		Inventory            ports.Inventory
+		Reports              []ports.OperationReport
+		PolicyReport         *ports.PolicyReport
+		RetainedOperationIDs []string
+		CommandReports       []ports.CommandReport
+		NetworkReport        *ports.NetworkReport
+	}{in.Sequence, in.ReportedRevision, in.Inventory, in.Reports, in.PolicyReport, in.RetainedOperationIDs, in.CommandReports, in.NetworkReport})
 	sum := sha256.Sum256(payload)
 	var sequence uint64
 	var previous, cached []byte
@@ -481,7 +503,39 @@ func (s *Store) Sync(ctx context.Context, in ports.SyncInput) (ports.Snapshot, e
 	if err = expire(ctx, tx, in.DeviceID, in.Now); err != nil {
 		return empty, err
 	}
+	if err = expireCommands(ctx, tx, in.DeviceID, in.Now); err != nil {
+		return empty, err
+	}
 	snapshot := ports.Snapshot{Sequence: in.Sequence}
+	if len(in.CommandReports) > 16 {
+		return empty, ports.ErrInvalidArgument
+	}
+	for _, report := range in.CommandReports {
+		if err = applyCommandReport(ctx, tx, in.DeviceID, report); err != nil {
+			return empty, err
+		}
+		snapshot.CommandReceipts = append(snapshot.CommandReceipts, report.CommandID)
+	}
+	snapshot.Commands, err = dispatchCommand(ctx, tx, in.DeviceID, in.Inventory)
+	if err != nil {
+		return empty, err
+	}
+	if len(in.RetainedOperationIDs) > 64 {
+		return empty, ports.ErrInvalidArgument
+	}
+	for _, id := range in.RetainedOperationIDs {
+		op, err := operation(ctx, tx, id)
+		if errors.Is(err, ports.ErrNotFound) {
+			snapshot.StoppedOperationIDs = append(snapshot.StoppedOperationIDs, id)
+			continue
+		}
+		if err != nil {
+			return empty, err
+		}
+		if op.DeviceID != in.DeviceID || op.State == "CANCELLED" || op.State == "FAILED" || op.State == "SUPERSEDED" {
+			snapshot.StoppedOperationIDs = append(snapshot.StoppedOperationIDs, id)
+		}
+	}
 	for _, report := range in.Reports {
 		receipt, err := applyReport(ctx, tx, in.DeviceID, report)
 		if err != nil {
@@ -546,6 +600,9 @@ func (s *Store) Sync(ctx context.Context, in ports.SyncInput) (ports.Snapshot, e
 		return empty, err
 	}
 	for _, op := range ops {
+		if in.Now.Before(op.NotBefore) {
+			continue
+		}
 		if len(snapshot.Operations) >= 8 {
 			break
 		}
@@ -599,8 +656,11 @@ func (s *Store) Sync(ctx context.Context, in ports.SyncInput) (ports.Snapshot, e
 			if err = json.Unmarshal(data, &op); err != nil {
 				return empty, err
 			}
-			if op.State == "FAILED" {
+			if op.State == "FAILED" || op.State == "CANCELLED" {
 				compliance.State, compliance.Reason = "FAILED", op.ErrorCode
+			}
+			if in.Now.Before(op.NotBefore) && op.State == "QUEUED" {
+				compliance.State, compliance.Reason = "PENDING", "SCHEDULED"
 			}
 			if op.State == "WAITING_USER" {
 				compliance.State, compliance.Reason = "PENDING", "USER_ACTION_REQUIRED"
@@ -610,6 +670,10 @@ func (s *Store) Sync(ctx context.Context, in ports.SyncInput) (ports.Snapshot, e
 	}
 	d.State, d.Inventory, d.LastSeenAt, d.ReportedRevision = "MANAGED", in.Inventory, in.Now, in.ReportedRevision
 	policy, err := policyStatus(ctx, tx, d, snapshot.Desired, in.PolicyReport)
+	if err != nil {
+		return empty, err
+	}
+	snapshot.Network, err = networkStatus(ctx, tx, d, in.NetworkReport)
 	if err != nil {
 		return empty, err
 	}

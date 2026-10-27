@@ -99,3 +99,23 @@ Where needed, use a separate HTTP APK origin with the HTTPS API:
 ```
 
 Pass the same bootstrap origin when issuing the QR. `Options.PublicURL` and optional `BootstrapURL` express these independent choices in the SDK. `Handler` serves APIs/APKs; `BootstrapHandler` serves only public bootstrap APKs. Post-enrollment app downloads always require device/operation authorization.
+
+## Fleet, commands and network lifecycle
+
+These trusted local CLI commands use public SDK APIs. Supply the same `-public-url`, `-apk`, `-data` and `-scope` values as the server. A running server reads the same durable state; CLI calls do not create administrator HTTP endpoints. Use `-device`, `-digest` and `-request-key` for assignments/commands.
+
+| Command | Additional flags/input |
+| --- | --- |
+| `set-group` / `group` / `groups` | `-group ID`; replacement reads a JSON array of device IDs through `-document FILE` and uses `-group-revision N` (zero creates). Pages use `-after CURSOR -limit 20`. |
+| `fleet-create` | `-document FILE` with a `FleetRequest`: ID, group or explicit device IDs, artifact digest and absolute window. `-scope` must match its scope. |
+| `fleet` / `fleet-advance` / `fleet-cancel` | `-batch ID`; advance uses `-limit 20`. Repeat advance until fan-out is complete. |
+| `fleets` | `-after CURSOR -limit 20`; resume incomplete batches after host restart. |
+| `assign-window` | `-not-before RFC3339 -deadline RFC3339`, plus device/digest/request key. |
+| `cancel-operation` | `-device ID -operation ID`. A delivered installation may still finish. |
+| `command-submit` | `-device ID -kind REBOOT\|LOCK -request-key KEY -timeout 1h`. These perform real one-shot Device Owner actions. |
+| `command` / `commands` / `command-cancel` | Device ID; point/cancel uses `-command-id ID`; list uses page flags. |
+| `set-network` / `network` | Device ID; replacement uses `-document FILE -request-key KEY`. Empty policy releases managed resources safely. |
+
+Protected Wi-Fi also requires `-network-secrets /private/path/network-secrets.json` on **both** `serve` and `set-network`. The example loads a private regular file (0600, at most 64 KiB), shaped as `{"site":{"office-key-v2":"passphrase"}}`. The running snapshot is immutable; add a new reference, preserve existing values, and restart the host when adding versions. The host owns encryption/backups and must keep reference versions consistent across restarts. No command prints resolved passwords. Production products can implement `NetworkSecretProvider` using their own vault.
+
+See [fleet operations](fleet-operations.md) for partial results/cancellation and [managed networks](managed-network.md) for permissions, recovery prerequisites, CA rotation and release. These features need their own physical record; existing device results do not qualify them.

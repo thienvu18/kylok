@@ -27,6 +27,7 @@ release = load("kylok_release_validation", "validate-release.py")
 distribution = load("kylok_distribution_validation", "check-distribution.py")
 source_release = load("kylok_source_release", "release-source.py")
 central = load("kylok_central", "central.py")
+package = load("kylok_package", "package-release.py")
 
 
 class CheckoutIntegrity(unittest.TestCase):
@@ -216,6 +217,20 @@ class ReleaseGates(unittest.TestCase):
 
 
 class RealDistribution(unittest.TestCase):
+    def test_public_certificate_resources_are_selected_and_must_match_reviewed_bytes(self):
+        selected = set(package.source_paths())
+        for name, digest in package.PUBLIC_CERTIFICATES.items():
+            self.assertIn(Path(name), selected)
+            self.assertEqual(hashlib.sha256((ROOT / name).read_bytes()).hexdigest(), digest)
+        target = next(iter(package.PUBLIC_CERTIFICATES))
+        with tempfile.TemporaryDirectory(prefix="kylok-public-ca-") as temp:
+            root = Path(temp)
+            path = root / target
+            path.parent.mkdir(parents=True)
+            path.write_bytes(b"unreviewed DER or private key")
+            with patch.object(package, "ROOT", root), self.assertRaisesRegex(ValueError, "reviewed checksum"):
+                package.source_paths()
+
     def test_rebuilt_maven_bytes_must_match_prepared_distribution(self):
         source = ROOT / "out/release/maven"
         with tempfile.TemporaryDirectory(prefix="kylok-maven-compare-") as temp:

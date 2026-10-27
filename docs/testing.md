@@ -9,8 +9,8 @@ This page describes verification for the current source. Pair Go and Android bui
 | `make check` | Local Markdown links, baseline/readiness structure, unchanged design draft, versions/licenses and SDK dependency direction. |
 | `make schema docs-audit` | Current typed contracts and handwritten method documentation. |
 | `make test-postgres` | Disposable PostgreSQL 18.6 fixture: shared conformance, competing instances, rollback, connection termination, crash/restart and saved projection recovery. |
-| `make test-go` | Go race, enrollment, storage, sync, policy and example behavior. |
-| `make test-android` | JVM agent/checkpoint/download/installer/policy tests; standalone network fixture is skipped. |
+| `make test-go` | Go race, enrollment, storage, sync, policy, fleet fan-out/windows/cancellation, command report binding and example behavior. |
+| `make test-android` | JVM agent/checkpoint/download/installer/policy, scheduled commit windows and one-shot command fault tests; standalone network fixture is skipped. |
 | `make build-android interop` | Android build/lint and complete real Go↔Kotlin HTTP/HTTPS fixtures; OS effects are simulated. |
 | `make test-host-update test-console` | Same-signer update APK metadata and authenticated console flows with real signed APKs. |
 | `make test-release-gates` | Fast publication failure checks without building a distribution: fresh checkout, version/tag identity, stable readiness, immutable refs and upload retry behavior. |
@@ -36,11 +36,11 @@ This builds independent consumers from remotely resolved Go/Maven artifacts and 
 - **N2:** existing provider conformance plus real PostgreSQL multi-instance races, transaction rollback and restart/crash recovery. Simulated SQL tests are insufficient.
 - **N3:** transaction-bound changes, cursor ordering/expiry, resnapshot consistency and replay after missed callbacks.
 - **N4:** Android initialization races and typed configuration round trips. The independent app's physical receipt, visible application, restart persistence and release passed on one POCO Pad X1 using current development source; separate physical `HostOptions` coverage remains open.
-- **N5:** partial bulk results, scheduling/cancellation/time changes and command uncertainty around effects/reboot.
-- **N6:** physical network/trust change, rotation, fallback and preservation of unmanaged settings.
+- **N5:** shared provider tests cover frozen membership, bounded partial results, concurrent workers, schedules, cancellation, token/report binding and uncertain deadlines; public facade tests cover restart, scope/cursors and sanitized snapshots. Android tests inject write/process/effect faults and require boot/keyguard observations. Physical scheduled installation, reboot and secure lock remain open.
+- **N6:** shared provider tests bind secret references, desired/report revisions and rollback with command reports. Android fault tests cover credential changes, interrupted creation/cleanup, fallback, CA overlap/release/expiry and unmanaged resource preservation. Real TLS tests enforce hostname validation, host baseline trust and removed-root distrust. HTTP/HTTPS Go↔Kotlin fixtures resolve a scoped secret, call authenticated probes and apply/release a modeled network. Wi-Fi/CA OS effects and IP/domain recovery still need physical qualification.
 - **N7:** declared compatibility pairs, scale benchmarks and the complete stable candidate matrix.
 
-N1–N4 software checks are implemented; selected N4 app behavior and policies have one-device evidence, while broader physical qualification remains manual. N5–N7 suites remain planned; do not add passing placeholders. Every adapter must preserve the same authentication, scope, atomicity, integrity and idempotency checks.
+N1–N4 software checks are implemented; selected N4 app behavior and policies have one-device evidence, while broader physical qualification remains manual. N5–N6 software suites are implemented; their physical qualification and N7 remain open; do not add passing placeholders. Every adapter must preserve the same authentication, scope, atomicity, integrity and idempotency checks.
 
 ## Physical evidence
 

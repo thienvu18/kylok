@@ -59,3 +59,7 @@ Kylok.retry(context) // schedules sync; read the result separately
 Open `Kylok.confirmPendingInstall` only after a user action when Android requests install confirmation. Status callbacks are read-only notifications; they cannot approve policies or bypass authentication. See the [API reference](api.html) and [example flows](examples.html).
 
 The current source also provides [host integration](https://github.com/thienvu18/kylok/blob/main/docs/host-integration.md) and [Android app configuration](https://github.com/thienvu18/kylok/blob/main/docs/managed-configuration.md) APIs.
+
+## Managed network permissions and secrets
+
+Network lifecycle is optional. Hosts grant precise location and Nearby Wi-Fi devices runtime permissions, keep an independently reachable saved recovery SSID, and provide immutable scoped secret references through `Options.NetworkSecrets` for protected Wi-Fi. The example Android dashboard prompts only when a network policy is assigned. The trusted local CLI supports `set-network`/`network`, fleet operations and one-shot commands. See [network lifecycle](https://github.com/thienvu18/kylok/blob/main/docs/managed-network.md) and [CLI commands](https://github.com/thienvu18/kylok/blob/main/docs/local-server.md). These paths have software tests and require physical qualification.

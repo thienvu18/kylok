@@ -36,16 +36,20 @@ type ChangesPage struct {
 
 // DeviceState is a consistent scoped aggregate for host projection, not an agent transport message.
 type DeviceState struct {
+	Network    NetworkStatus        `json:"network"`
 	Device     Device               `json:"device"`
 	Desired    []DesiredApplication `json:"desired"`
 	Operations []Operation          `json:"operations"`
+	Commands   []Command            `json:"commands"`
 	Policy     PolicyStatus         `json:"policy"`
 }
 
 // ProjectionItem is one immutable snapshot record. Exactly one resource pointer is set.
 type ProjectionItem struct {
-	Device      *DeviceState `json:"device,omitempty"`
-	Application *Artifact    `json:"application,omitempty"`
+	Device      *DeviceState     `json:"device,omitempty"`
+	Application *Artifact        `json:"application,omitempty"`
+	Group       *Group           `json:"group,omitempty"`
+	Fleet       *FleetAssignment `json:"fleet,omitempty"`
 }
 
 // ProjectionPage carries a snapshot continuation and the change watermark for after the final page.

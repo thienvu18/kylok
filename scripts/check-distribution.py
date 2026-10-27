@@ -101,7 +101,8 @@ def check(directory):
             assert member.isfile() and member.name.startswith("kylok/") and ".." not in PurePosixPath(member.name).parts
             assert not {".git", "build", "out", "lanTest"} & set(PurePosixPath(member.name).parts)
             assert not member.name.endswith((".key", ".p12", ".keystore", ".pem", ".apk", ".aar")), member.name
-        for name in ("LICENSE", "COPYING", "NOTICE", "proto/kylok/v1/agent.proto", "go/go.mod", "android/kylok-dpc/build.gradle.kts", "scripts/package-release.py",
+        for name in ("LICENSE", "COPYING", "NOTICE", "README.vi.md", "CODE_OF_CONDUCT.md", "SECURITY.md", "proto/kylok/v1/agent.proto", "go/go.mod", "android/kylok-dpc/build.gradle.kts", "scripts/package-release.py",
+                     "android/kylok-dpc/src/test/resources/network-ca-a.der", "android/kylok-dpc/src/test/resources/network-ca-b.der",
                      "examples/minimal-server/web/index.html", "examples/minimal-server/web/console.js", "website/requirements.txt", "website/en/index.md", "website/vi/index.md"):
             assert "kylok/" + name in names, name
     print(f"Distribution verified: Go {manifest['go_version']}, Android {android}, {len(sums)} checksums; remote publication is separate.")

@@ -25,7 +25,9 @@ data class AgentStatus(
     val syncSequence: Long = 0,
     val pendingReports: Int = 0,
     val applications: List<ApplicationStatus> = emptyList(),
-    val operations: List<InstallationStatus> = emptyList()
+    val operations: List<InstallationStatus> = emptyList(),
+    val commands: List<CommandStatus> = emptyList(),
+    val network: NetworkLifecycleStatus? = null
 )
 /** One local rule result. Usage: render each item in `AgentStatus.policies`, including its reason. */
 data class PolicyStatus(val ruleId: String, val state: String, val reason: String, val observedValue: String = "")
@@ -34,6 +36,11 @@ data class ApplicationStatus(val packageName: String, val desiredVersion: Long, 
 /** Durable install progress. Usage: offer OS confirmation when `requiresUserAction` is true. */
 data class InstallationStatus(val id: String, val packageName: String, val version: Long, val stage: String,
     val downloadedBytes: Long, val sizeBytes: Long, val error: String, val requiresUserAction: Boolean)
+/** Local one-shot progress until the server acknowledges its result. Usage: render `AgentStatus.commands`; dispatch tokens are excluded. */
+data class CommandStatus(val id: String, val kind: String, val state: String, val errorCode: String)
+/** Sanitized network readback without SSIDs, passwords or certificate bytes. Usage: render `AgentStatus.network`. */
+data class NetworkLifecycleStatus(val revision: Long, val state: String, val reason: String, val activeProfileId: String,
+    val connectivityVerified: Boolean, val cleanupComplete: Boolean)
 /** Read-only main-thread notifications. Usage: `Kylok.observe(StatusListener { render(it) })`. */
 fun interface StatusListener {
     /** Render a local observation and return promptly. Usage: implement this callback; close its registration with the host lifecycle. */
@@ -85,9 +92,24 @@ internal fun statusValue(state: JSONObject, owner: Boolean, lan: Boolean): Agent
         InstallationStatus(id, op.artifact.packageName, op.artifact.versionCode, stage, local.optLong("bytes"), op.artifact.sizeBytes,
             local.optString("failure", local.optString("callback_code")), !local.optBoolean("terminal") && !local.optBoolean("superseded") && local.has("confirmation"))
     }.toList()
+    val localCommands = state.objectValue("commands")
+    val commands = localCommands.keys().asSequence().sorted().map { id ->
+        val record = localCommands.getJSONObject(id)
+        val command = Command.parseFrom(decode(record.getString("command")))
+        val encodedReport = state.objectValue("command_reports").optString(id)
+        val result = if (encodedReport.isEmpty()) null else CommandReport.parseFrom(decode(encodedReport))
+        CommandStatus(id, command.kind, result?.state ?: if (record.optString("stage") == "armed") "AWAITING_OBSERVATION" else "DISPATCHED", result?.errorCode ?: "")
+    }.toList()
+    val networkRevision = snapshot?.takeIf { it.hasDesiredNetworkPolicy() }?.desiredNetworkPolicy?.revision
+    val networkReport = state.optString("network_report").takeIf { it.isNotEmpty() }?.let { NetworkReport.parseFrom(decode(it)) }
+    val network = networkRevision?.let { revision ->
+        val current = networkReport?.takeIf { it.revision == revision }
+        NetworkLifecycleStatus(revision, current?.state ?: "PENDING", current?.reason ?: "NOT_OBSERVED", current?.activeProfileId ?: "",
+            current?.connectivityVerified ?: false, current?.cleanupComplete ?: false)
+    }
     return AgentStatus(BuildConfig.SDK_VERSION, BuildConfig.PROTOCOL_VERSION, state.optString("lifecycle", "UNMANAGED"),
         state.optString("device_id").takeIf { it.isNotEmpty() }, state.optString("scope_id").takeIf { it.isNotEmpty() },
         owner, lan, state.optLong("revision"), state.optString("result", "pending / not configured"), policies,
         state.optString("server").takeIf { it.isNotEmpty() }, snapshot?.device?.lastSeenAtUnixMillis ?: 0,
-        state.optLong("sequence"), state.array("reports").length(), applications, operations)
+        state.optLong("sequence"), state.array("reports").length() + state.objectValue("command_reports").length(), applications, operations, commands, network)
 }

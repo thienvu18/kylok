@@ -17,6 +17,9 @@ Add Android device management to your own product with Kylok, without building e
 - Assign signed APKs and track durable desired versions, device inventory, installation progress and results.
 - Resume authenticated APK downloads, verify APK digests and signing identity, and recover interrupted installs.
 - Apply basic policies for required apps, Android Lock Task, runtime permissions and selected restrictions, with observed results for each rule.
+- Target opaque device groups, submit bounded bulk assignments and schedule APKs within absolute deployment windows.
+- Manage Wi-Fi/private CAs with scoped secret references, verified recovery and staged rotation/release; physical qualification remains open.
+- Request capability-gated reboot/secure lock with durable checkpoints and explicit uncertain results; device qualification remains open.
 - Embed the SDKs in your own Go and Android applications. SQLite and filesystem storage are ready to use; custom providers remain under host control.
 - Start from the example web console and Android dashboard for enrollment, apps, policies and device status.
 
@@ -37,7 +40,7 @@ repositories { mavenCentral() }
 dependencies { implementation("io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev.40316176224") }
 ```
 
-Public package downloads need no registry account. Follow the [integration guide](docs/sdk.md) for bootstrap APK verification, HTTP/2 serving, Android host identity and lifecycle. SQLite/filesystem are the default providers. Current source also includes [PostgreSQL and replayable changes](docs/host-integration.md), plus [Android host/app configuration](docs/managed-configuration.md); build from this source tree to use those APIs.
+Public package downloads need no registry account. Follow the [integration guide](docs/sdk.md) for bootstrap APK verification, HTTP/2 serving, Android host identity and lifecycle. SQLite/filesystem are the default providers. Current source also includes [PostgreSQL and replayable changes](docs/host-integration.md), [Android host/app configuration](docs/managed-configuration.md), [fleet operations](docs/fleet-operations.md) and [managed networks](docs/managed-network.md); build from this source tree to use those APIs.
 
 ## Try the reference app
 

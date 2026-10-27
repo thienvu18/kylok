@@ -12,7 +12,7 @@ import java.security.MessageDigest
 /** Uses bounded range requests, a fixed origin, verified bytes, and fsynced checkpoints. */
 internal object ArtifactDownload {
     /** Resume authorized same-origin bytes, fsync progress and verify immutable size and digest. */
-    fun fetch(origin: String, credential: String, deviceID: String, op: Operation, file: File, progress: (Long) -> Unit) {
+    fun fetch(origin: String, credential: String, deviceID: String, op: Operation, file: File, connectionFactory: ((java.net.URL) -> HttpURLConnection)? = null, progress: (Long) -> Unit) {
         val server = URI(origin)
         // Resolve server paths against the enrolled origin; the checks below
         // still reject absolute URLs that would move credentials to another host.
@@ -25,7 +25,7 @@ internal object ArtifactDownload {
         if (file.length() != expected) {
             file.parentFile!!.mkdirs()
             val offset = file.length()
-            val connection = uri.toURL().openConnection() as HttpURLConnection
+            val connection = connectionFactory?.invoke(uri.toURL()) ?: uri.toURL().openConnection() as HttpURLConnection
             try {
                 connection.instanceFollowRedirects = false
                 connection.connectTimeout = 10_000; connection.readTimeout = 20_000

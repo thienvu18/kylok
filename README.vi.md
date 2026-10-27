@@ -61,3 +61,7 @@ Tài liệu [tiếng Anh](website/en/index.md) và [tiếng Việt](website/vi/i
 [Kiểm tra trên thiết bị thật](docs/provisioning.md) · [Tương thích](docs/compatibility.md) · [Chính sách](docs/policies.md)
 
 Đóng góp gốc của dự án dùng giấy phép **LGPL-3.0-only**; xem [NOTICE](NOTICE), [LICENSE](LICENSE) và [COPYING](COPYING).
+
+## Vận hành fleet trong mã nguồn hiện tại
+
+SDK cung cấp nhóm thiết bị theo scope, gán APK hàng loạt có checkpoint, lịch triển khai tuyệt đối và hủy tác vụ. Lệnh reboot/khóa bảo mật dùng checkpoint trước hiệu ứng và kết quả `UNCERTAIN` khi chưa thể xác nhận; phần này có kiểm tra tự động và cần kiểm định thiết bị thật. Xem [hợp đồng fleet](docs/fleet-operations.md). Quản lý Wi-Fi/CA riêng dùng secret reference theo scope, xác minh đường khôi phục và journal khi xoay/gỡ cấu hình; xem [quản lý mạng](docs/managed-network.md). Phần mạng có kiểm tra phần mềm và cần kiểm định thiết bị thật.

@@ -81,6 +81,10 @@ message SyncRequest {
   uint64 reported_revision = 5;
   repeated OperationReport reports = 6;
   PolicyReport policy_report = 7;
+  // Bounded active local work; lets the server stop cancellations even with unchanged desired intent.
+  repeated string retained_operation_ids = 8;
+  repeated CommandReport command_reports = 9;
+  NetworkReport network_report = 10;
 }
 
 message SyncResponse {
@@ -93,6 +97,11 @@ message SyncResponse {
   repeated ApplicationCompliance compliance = 7;
   DesiredPolicy desired_policy = 8;
   repeated PolicyResult policy_compliance = 9;
+  // Work already delivered may finish; stop markers only prevent further local effects.
+  repeated string stopped_operation_ids = 10;
+  repeated Command commands = 11;
+  repeated string command_receipts = 12;
+  DesiredNetworkPolicy desired_network_policy = 13;
 }
 
 // Full replacement. Omitted settings release previously managed settings to
@@ -176,6 +185,7 @@ enum OperationState {
   OPERATION_STATE_SUCCEEDED = 4;
   OPERATION_STATE_FAILED = 5;
   OPERATION_STATE_SUPERSEDED = 6;
+  OPERATION_STATE_CANCELLED = 7;
 }
 
 message Operation {
@@ -187,6 +197,8 @@ message Operation {
   int64 deadline_unix_millis = 6;
   OperationState state = 7;
   string download_url = 8;
+  // Absolute window start; agents check again before any installation effect.
+  int64 not_before_unix_millis = 9;
 }
 
 message OperationReport {
@@ -275,4 +287,62 @@ message ConfigurationStrings {
 
 message ConfigurationBundles {
   repeated ConfigurationBundle values = 1;
+}
+
+// A dispatch token is stable for the lifetime of a one-shot action. Agents checkpoint before calling Android.
+message Command {
+  string id = 1;
+  string kind = 2;
+  string dispatch_token = 3;
+  int64 deadline_unix_millis = 4;
+}
+
+message CommandReport {
+  string command_id = 1;
+  string dispatch_token = 2;
+  // SUCCEEDED, FAILED or UNCERTAIN. An uncertain result must not trigger another effect.
+  string state = 3;
+  string error_code = 4;
+  CommandObservation observation = 5;
+}
+
+message CommandObservation {
+  int64 boot_before = 1;
+  int64 boot_after = 2;
+  bool secure = 3;
+  bool locked = 4;
+}
+
+// Delivered credentials stay in encrypted agent checkpoints, outside management reads/events.
+message WifiProfile {
+  string id = 1;
+  string ssid = 2;
+  string security = 3;
+  bytes passphrase = 4;
+  bool hidden = 5;
+}
+
+message CACertificate {
+  string id = 1;
+  bytes der = 2;
+}
+
+message NetworkPolicy {
+  string primary_id = 1;
+  repeated WifiProfile profiles = 2;
+  repeated CACertificate certificates = 3;
+}
+
+message DesiredNetworkPolicy {
+  uint64 revision = 1;
+  NetworkPolicy policy = 2;
+}
+
+message NetworkReport {
+  uint64 revision = 1;
+  string state = 2;
+  string reason = 3;
+  string active_profile_id = 4;
+  bool connectivity_verified = 5;
+  bool cleanup_complete = 6;
 }

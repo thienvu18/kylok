@@ -43,7 +43,7 @@ class EnrollmentInteropTest {
         try { client.use { client ->
             val keys = KeyPairGenerator.getInstance("EC").apply { initialize(ECGenParameterSpec("secp256r1")) }.generateKeyPair()
             val inventory = Inventory.newBuilder().setApiLevel(35).setModel("JVM interoperability fixture")
-                .setBuildFingerprint("unit-test/not-device-evidence").setAgentVersion("interop/1").setDeviceOwner(true).addCapabilities("install_apk").build()
+                .setBuildFingerprint("unit-test/not-device-evidence").setAgentVersion("interop/1").setDeviceOwner(true).addCapabilities("install_apk").addCapabilities("command.reboot").addCapabilities("network.lifecycle").build()
             val attempt = "jvm-attempt-0123456789"
             val token = qr.getString("kylok.enrollment_token")
             val first = client.enroll(token, attempt, keys.public.encoded, inventory)
@@ -64,7 +64,7 @@ class EnrollmentInteropTest {
             assumeNotNull(binary)
             fun command(vararg args: String): String {
                 val process = ProcessBuilder(listOf(binary!!, *args, "-public-url", uri.toString(), "-apk", System.getenv("KYLOK_INTEROP_APK"),
-                    "-data", System.getenv("KYLOK_INTEROP_DATA"), "-scope", "interop", "-allow-debug-apk")).redirectErrorStream(true).start()
+                    "-data", System.getenv("KYLOK_INTEROP_DATA"), "-scope", "interop", "-allow-debug-apk", "-network-secrets", System.getenv("KYLOK_INTEROP_SECRETS"))).redirectErrorStream(true).start()
                 val output = process.inputStream.bufferedReader().readText()
                 assertEquals(output, 0, process.waitFor())
                 return output
@@ -89,7 +89,7 @@ class EnrollmentInteropTest {
                 override fun isOwner() = true
                 override fun installed(packageName: String) = observed
                 override fun download(op: Operation, progress: (Long) -> Unit) {
-                    ArtifactDownload.fetch(uri.toString(), credential, recovered.device.id, op, File(directory, "artifact.apk"), progress)
+                    ArtifactDownload.fetch(uri.toString(), credential, recovered.device.id, op, File(directory, "artifact.apk"), progress = progress)
                 }
                 override fun verify(op: Operation) { assertEquals(op.artifact.sizeBytes, File(directory, "artifact.apk").length()) }
                 override fun createSession(op: Operation) = 1
@@ -148,6 +148,89 @@ class EnrollmentInteropTest {
                 assertEquals("false", policyValues["camera"])
                 assertEquals(ConfigurationValues.journal(ConfigurationBundle.getDefaultInstance()), policyValues["configuration:$packageName"])
                 assertEquals(lockTaskValue(emptyList(), ""), policyValues["lock_task"])
+                // Use the example's public SDK boundary for frozen fleet submission and scheduled cancellation.
+                val members = File(directory,"members.json").apply { writeText(org.json.JSONArray(listOf(recovered.device.id)).toString()) }
+                command("set-group","-group","interop-group","-document",members.path)
+                val batchFile = File(directory,"batch.json").apply { writeText(JSONObject().put("id","interop-batch").put("group_id","interop-group")
+                    .put("artifact_sha256",artifact.getString("sha256")).put("not_before",java.time.Instant.now().minusSeconds(1).toString())
+                    .put("deadline",java.time.Instant.now().plusSeconds(3600).toString()).toString()) }
+                command("fleet-create","-document",batchFile.path)
+                val batch = JSONObject(command("fleet-advance","-batch","interop-batch","-limit","1"))
+                assertTrue(batch.getBoolean("complete"))
+                checkpoints.accept(client.sync(checkpoints.request(installedInventory),credential))
+                assertFalse(InstallEngine(storage,platform).run())
+                checkpoints.accept(client.sync(checkpoints.request(installedInventory),credential))
+                assertEquals(1,commits) // Already observed installed bytes need no second installer effect.
+                val scheduled = JSONObject(command("assign-window","-device",recovered.device.id,"-digest",artifact.getString("sha256"),"-request-key","interop-window",
+                    "-not-before",java.time.Instant.now().plusSeconds(3600).toString(),"-deadline",java.time.Instant.now().plusSeconds(7200).toString()))
+                val early = client.sync(checkpoints.request(installedInventory),credential);checkpoints.accept(early)
+                assertEquals(0,early.operationsCount)
+                assertEquals("CANCELLED",JSONObject(command("cancel-operation","-device",recovered.device.id,"-operation",scheduled.getString("id"))).getString("state"))
+
+                // Android effects stay modeled; transport, dispatch/report tokens and server state are real.
+                val reboot = JSONObject(command("command-submit","-device",recovered.device.id,"-kind","REBOOT","-request-key","interop-reboot","-timeout","1h"))
+                checkpoints.accept(client.sync(checkpoints.request(installedInventory),credential))
+                var boots = 7L; var reboots = 0
+                val commands = CommandEngine(storage,object : CommandPlatform {
+                    override fun now() = System.currentTimeMillis()
+                    override fun processID() = "interop-process"
+                    override fun isOwner() = true
+                    override fun bootCount() = boots
+                    override fun isSecure() = true
+                    override fun isLocked() = false
+                    override fun reboot() { reboots++;boots++ }
+                    override fun lock() { fail("lock not assigned") }
+                })
+                assertFalse(commands.run())
+                checkpoints.accept(client.sync(checkpoints.request(installedInventory),credential))
+                assertEquals(1,reboots)
+                assertEquals("SUCCEEDED",JSONObject(command("command","-device",recovered.device.id,"-command-id",reboot.getString("id"))).getString("state"))
+                val networkFile = File(directory,"network.json").apply { writeText("""{"primary_id":"office","profiles":[{"id":"office","ssid":"Office","security":"WPA2_PSK","secret_ref":"wifi-v1"}]}""") }
+                val fixtureCA=File(certPath!!).inputStream().use { CertificateFactory.getInstance("X.509").generateCertificate(it).encoded }
+                networkFile.writeText(JSONObject(networkFile.readText()).put("certificates",org.json.JSONArray().put(JSONObject().put("id","fixture-root")
+                    .put("der",java.util.Base64.getEncoder().encodeToString(fixtureCA)))).toString())
+                command("set-network","-device",recovered.device.id,"-request-key","interop-network","-document",networkFile.path)
+                val networking = client.sync(checkpoints.request(installedInventory),credential);checkpoints.accept(networking)
+                assertEquals("jvm-passphrase",networking.desiredNetworkPolicy.policy.profilesList.single().passphrase.toStringUtf8())
+                val savedNetworks = mutableMapOf(1 to SavedNetwork(1,"Recovery","WPA2_PSK"));val installedCAs=mutableSetOf<String>();var activeNetwork = 1;var probeCount = 0
+                val networks = NetworkEngine(storage,object : NetworkPlatform {
+                    override fun check() { }
+                    override fun now() = System.currentTimeMillis()
+                    override fun configured() = savedNetworks.values.toList()
+                    override fun callerConfigured() = savedNetworks.values.filter { it.id != 1 }
+                    override fun currentNetworkID() = activeNetwork
+                    override fun upsert(profile: WifiProfile,id: Int?): Int {
+                        assertEquals("jvm-passphrase",profile.passphrase.toStringUtf8())
+                        savedNetworks[2] = SavedNetwork(2,profile.ssid,profile.security);return 2
+                    }
+                    override fun select(id: Int) { activeNetwork=id }
+                    override fun remove(network: SavedNetwork) { assertNotEquals(activeNetwork,network.id);assertNotEquals(1,network.id);savedNetworks.remove(network.id) }
+                    override fun hasCA(der: ByteArray) = caDigest(der) in installedCAs
+                    override fun trustsCAByDefault(der: ByteArray) = uri.scheme=="https" && der.contentEquals(fixtureCA)
+                    override fun installCA(der: ByteArray) { installedCAs += caDigest(der) }
+                    override fun removeCA(der: ByteArray) { installedCAs -= caDigest(der) }
+                    override fun probe(id: Int,policy: NetworkPolicy): Boolean {
+                        if(id!=activeNetwork)return false
+                        val connection = uri.resolve("/network-probe").toURL().openConnection() as java.net.HttpURLConnection
+                        connection.connectTimeout=2000;connection.readTimeout=2000;connection.instanceFollowRedirects=false
+                        connection.setRequestProperty("Authorization","Bearer $credential")
+                        connection.setRequestProperty("X-Kylok-Device-ID",recovered.device.id)
+                        connection.setRequestProperty("X-Kylok-Probe","n".repeat(43))
+                        return try { probeCount++;connection.responseCode==204 && connection.getHeaderField("X-Kylok-Probe")=="n".repeat(43) } finally { connection.disconnect() }
+                    }
+                })
+                assertFalse(networks.run())
+                checkpoints.accept(client.sync(checkpoints.request(installedInventory),credential))
+                assertEquals("APPLIED",JSONObject(command("network","-device",recovered.device.id)).getString("state"))
+                assertTrue(probeCount>=2)
+                networkFile.writeText("{}")
+                command("set-network","-device",recovered.device.id,"-request-key","interop-network-release","-document",networkFile.path)
+                checkpoints.accept(client.sync(checkpoints.request(installedInventory),credential))
+                assertFalse(networks.run())
+                checkpoints.accept(client.sync(checkpoints.request(installedInventory),credential))
+                assertTrue(installedCAs.isEmpty())
+                assertEquals(setOf(1),savedNetworks.keys)
+                assertEquals("APPLIED",JSONObject(command("network","-device",recovered.device.id)).getString("state"))
             } finally { directory.deleteRecursively() }
         }
         } finally { HttpsURLConnection.setDefaultSSLSocketFactory(previousTrust) }
