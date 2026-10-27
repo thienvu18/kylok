@@ -1,0 +1,94 @@
+name: Bug report
+description: Report a defect, failure, or unexpected behavior in Kylok SDKs or reference tools.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue to Kylok.
+        > **Security Warning**: If you suspect a security vulnerability, do NOT file a public issue. Please follow our [Security Policy](https://github.com/thienvu18/kylok/blob/main/SECURITY.md) to report it privately.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      description: Which part of Kylok does this issue affect?
+      options:
+        - "Go SDK (go/)"
+        - "Android DPC Library (android/kylok-dpc/)"
+        - "Protobuf Schema & Protocol (proto/kylok/v1/)"
+        - "Reference Apps & Examples (examples/)"
+        - "Scripts & Tooling"
+        - "Documentation"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Kylok Version / Commit SHA
+      description: Specify the exact release version (e.g. v0.1.0-dev.40316176224) or git commit SHA.
+      placeholder: "e.g., v0.1.0-dev.40316176224 or git SHA abc1234"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Details
+      description: |
+        Detail the host and device environments:
+        - Go version and host OS / architecture
+        - Android device model or emulator, Android OS version and API level
+        - OEM firmware / build ID (e.g. HyperOS 1.0.9, Pixel Android 15 Beta)
+        - Transport mode: HTTP or HTTPS (IP or domain origin)
+      placeholder: |
+        - Go version: go1.24.0 darwin/arm64
+        - Android device: POCO Pad X1 (Android 15, API 35, HyperOS 1.0.9)
+        - Transport: HTTPS with valid domain certificate
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem Description
+      description: A clear and concise description of the bug.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed, minimal steps to reproduce the issue using public APIs or reference setups.
+      placeholder: |
+        1. Start local server with command: ...
+        2. Provision Android DPC via QR code ...
+        3. Attempt to assign APK ...
+        4. See error or unexpected state
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected vs. Observed Behavior
+      description: Clearly distinguish between desired state, observed state, and compliance failure.
+      placeholder: |
+        - Expected behavior: ...
+        - Observed behavior: ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs or Evidence
+      description: |
+        Paste relevant log output, stack traces, or command output.
+        **Important**: Never include QR enrollment tokens, device credentials, private signing keys, or personal device identifiers.
+      render: shell
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: "I confirm that no private keys, QR enrollment tokens, credentials, or personal device data are included in this report."
+          required: true
+        - label: "I have checked existing issues and confirmed this is not a known or duplicate problem."
+          required: true

@@ -52,7 +52,11 @@ Sau khi cài [bộ công cụ](website/vi/development.md), khởi động máy c
 
 Tài liệu [tiếng Anh](website/en/index.md) và [tiếng Việt](website/vi/index.md) hướng dẫn thiết lập, phân phối ứng dụng và quản lý chính sách. Tham khảo [API](website/vi/api.md) và [bằng chứng tương thích](website/vi/compatibility.md) khi lên kế hoạch tích hợp.
 
-[Tích hợp SDK](docs/sdk.md) · [Kiến trúc](docs/architecture.md) · [Giao thức](docs/enrollment-protocol.md) · [Lộ trình](ROADMAP.md) · [Đóng góp](CONTRIBUTING.md)
+## Người đóng góp
+
+[![Người đóng góp](https://contrib.rocks/image?repo=thienvu18/kylok)](https://github.com/thienvu18/kylok/graphs/contributors)
+
+[Tích hợp SDK](docs/sdk.md) · [Kiến trúc](docs/architecture.md) · [Giao thức](docs/enrollment-protocol.md) · [Lộ trình](ROADMAP.md) · [Đóng góp](CONTRIBUTING.md) · [Quy tắc ứng xử](CODE_OF_CONDUCT.md) · [Bảo mật](SECURITY.md)
 
 [Kiểm tra trên thiết bị thật](docs/provisioning.md) · [Tương thích](docs/compatibility.md) · [Chính sách](docs/policies.md)
 

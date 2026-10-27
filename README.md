@@ -52,7 +52,11 @@ For a local evaluation on a trusted LAN, the example serves the API and APK over
 
 The [English](website/en/index.md) and [Vietnamese](website/vi/index.md) guides explain setup, app delivery and policies. Browse the [API reference](website/en/api.md) and [compatibility evidence](website/en/compatibility.md) when planning an integration.
 
-[SDK integration](docs/sdk.md) · [Architecture](docs/architecture.md) · [Protocol](docs/enrollment-protocol.md) · [Roadmap](ROADMAP.md) · [Contributing](CONTRIBUTING.md)
+## Contributors
+
+[![Contributors](https://contrib.rocks/image?repo=thienvu18/kylok)](https://github.com/thienvu18/kylok/graphs/contributors)
+
+[SDK integration](docs/sdk.md) · [Architecture](docs/architecture.md) · [Protocol](docs/enrollment-protocol.md) · [Roadmap](ROADMAP.md) · [Contributing](CONTRIBUTING.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · [Security](SECURITY.md)
 
 [Implementation plan](docs/implementation-plan.md) · [Testing](docs/testing.md) · [Physical checks](docs/provisioning.md) · [Stable readiness](docs/release-readiness.md)
 

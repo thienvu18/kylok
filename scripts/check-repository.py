@@ -10,7 +10,7 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 errors = []
-docs = [ROOT / name for name in ("README.md", "README.vi.md", "ROADMAP.md", "CONTRIBUTING.md", "AGENTS.md")]
+docs = [ROOT / name for name in ("README.md", "README.vi.md", "ROADMAP.md", "CONTRIBUTING.md", "AGENTS.md", "CODE_OF_CONDUCT.md", "SECURITY.md")]
 docs += sorted((ROOT / "docs").rglob("*.md"))
 docs += [ROOT / "tests/contracts/README.md"]
 docs += [ROOT / "go/README.md"]
