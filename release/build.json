@@ -1,0 +1,13 @@
+{
+  "base_versions": {
+    "android": "0.3.0-dev",
+    "go": "0.3.0-dev"
+  },
+  "build_id": "40623924069",
+  "format": 1,
+  "source_commit": "4b9d890ea12002995ac2302a6ff6aebb5a9e2444",
+  "versions": {
+    "android": "0.3.0-dev.40623924069",
+    "go": "0.3.0-dev.40623924069"
+  }
+}
