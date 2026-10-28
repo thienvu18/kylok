@@ -37,6 +37,8 @@ func rpcError(code connect.Code, reason kylokv1.ErrorReason, retry bool) error {
 // Map transactional/authentication failures into protocol status without revealing storage internals.
 func storeError(err error) error {
 	switch {
+	case errors.Is(err, ports.ErrInvalidArgument):
+		return rpcError(connect.CodeInvalidArgument, kylokv1.ErrorReason_ERROR_REASON_INVALID_INPUT, false)
 	case errors.Is(err, ports.ErrNotFound):
 		return rpcError(connect.CodeUnauthenticated, kylokv1.ErrorReason_ERROR_REASON_TOKEN_INVALID, false)
 	case errors.Is(err, ports.ErrExpired):
@@ -218,10 +220,36 @@ func (a *agentService) Sync(ctx context.Context, r *connect.Request[kylokv1.Sync
 	if !strings.HasPrefix(header, "Bearer ") || len(header) != 7+43 || !devicePattern.MatchString(r.Msg.DeviceId) {
 		return nil, rpcError(connect.CodeUnauthenticated, kylokv1.ErrorReason_ERROR_REASON_UNAUTHENTICATED, false)
 	}
-	if r.Msg.Sequence == 0 || r.Msg.Sequence > 1<<62 || len(r.Msg.Reports) > 64 {
+	if r.Msg.Sequence == 0 || r.Msg.Sequence > 1<<62 || len(r.Msg.Reports) > 64 || len(r.Msg.RetainedOperationIds) > 64 || len(r.Msg.CommandReports) > 16 {
 		return nil, rpcError(connect.CodeInvalidArgument, kylokv1.ErrorReason_ERROR_REASON_INVALID_INPUT, false)
 	}
 	input := ports.SyncInput{DeviceID: r.Msg.DeviceId, CredentialHash: hash(strings.TrimPrefix(header, "Bearer ")), Inventory: inventory, Now: a.sdk.clock().UTC(), Sequence: r.Msg.Sequence, ReportedRevision: r.Msg.ReportedRevision}
+	seenRetained := map[string]bool{}
+	for _, id := range r.Msg.RetainedOperationIds {
+		if !devicePattern.MatchString(id) || seenRetained[id] {
+			return nil, rpcError(connect.CodeInvalidArgument, kylokv1.ErrorReason_ERROR_REASON_INVALID_INPUT, false)
+		}
+		seenRetained[id] = true
+		input.RetainedOperationIDs = append(input.RetainedOperationIDs, id)
+	}
+	if report := r.Msg.NetworkReport; report != nil {
+		input.NetworkReport = &ports.NetworkReport{Revision: report.Revision, State: report.State, Reason: report.Reason, ActiveProfileID: report.ActiveProfileId, ConnectivityVerified: report.ConnectivityVerified, CleanupComplete: report.CleanupComplete}
+		if report.Revision == 0 || report.Revision > r.Msg.ReportedRevision || len(report.Reason) > 128 || len(report.ActiveProfileId) > 128 {
+			return nil, rpcError(connect.CodeInvalidArgument, kylokv1.ErrorReason_ERROR_REASON_INVALID_INPUT, false)
+		}
+	}
+	seenCommands := map[string]bool{}
+	for _, report := range r.Msg.CommandReports {
+		if !devicePattern.MatchString(report.CommandId) || seenCommands[report.CommandId] || len(report.DispatchToken) != 48 || len(report.ErrorCode) > 128 || (report.State != "SUCCEEDED" && report.State != "FAILED" && report.State != "UNCERTAIN") {
+			return nil, rpcError(connect.CodeInvalidArgument, kylokv1.ErrorReason_ERROR_REASON_INVALID_INPUT, false)
+		}
+		seenCommands[report.CommandId] = true
+		result := ports.CommandReport{CommandID: report.CommandId, DispatchToken: report.DispatchToken, State: report.State, ErrorCode: report.ErrorCode}
+		if value := report.Observation; value != nil {
+			result.Observation = &ports.CommandObservation{BootBefore: value.BootBefore, BootAfter: value.BootAfter, Secure: value.Secure, Locked: value.Locked}
+		}
+		input.CommandReports = append(input.CommandReports, result)
+	}
 	if report := r.Msg.PolicyReport; report != nil {
 		if report.Revision == 0 || report.Revision > report.SnapshotRevision || report.SnapshotRevision > r.Msg.ReportedRevision || len(report.Results) > ports.MaximumPolicyResults {
 			return nil, rpcError(connect.CodeInvalidArgument, kylokv1.ErrorReason_ERROR_REASON_INVALID_INPUT, false)
@@ -253,7 +281,15 @@ func (a *agentService) Sync(ctx context.Context, r *connect.Request[kylokv1.Sync
 		return nil, storeError(err)
 	}
 	a.sdk.emit("device_synced", snapshot.Device.ScopeID, snapshot.Device.ID, snapshot.Device.DesiredRevision, fmt.Sprint(snapshot.Sequence))
-	response := &kylokv1.SyncResponse{Device: deviceMessage(snapshot.Device), ProtocolVersion: ProtocolVersion, Sequence: snapshot.Sequence}
+	response := &kylokv1.SyncResponse{Device: deviceMessage(snapshot.Device), ProtocolVersion: ProtocolVersion, Sequence: snapshot.Sequence, StoppedOperationIds: snapshot.StoppedOperationIDs}
+	response.DesiredNetworkPolicy, err = a.sdk.networkMessage(ctx, snapshot.Device.ScopeID, snapshot.Network.Desired)
+	if err != nil {
+		return nil, rpcError(connect.CodeUnavailable, kylokv1.ErrorReason_ERROR_REASON_STORAGE_UNAVAILABLE, true)
+	}
+	response.CommandReceipts = snapshot.CommandReceipts
+	for _, command := range snapshot.Commands {
+		response.Commands = append(response.Commands, &kylokv1.Command{Id: command.ID, Kind: command.Kind, DispatchToken: command.DispatchToken, DeadlineUnixMillis: command.Deadline.UnixMilli()})
+	}
 	if want := snapshot.DesiredPolicy; want != nil {
 		response.DesiredPolicy = &kylokv1.DesiredPolicy{Revision: want.Revision, Policy: policyMessage(want.Policy)}
 	}
@@ -266,7 +302,7 @@ func (a *agentService) Sync(ctx context.Context, r *connect.Request[kylokv1.Sync
 	for _, op := range snapshot.Operations {
 		// Relative paths keep downloads on the endpoint selected at enrollment,
 		// including another LAN interface or a host-controlled domain alias.
-		response.Operations = append(response.Operations, &kylokv1.Operation{Id: op.ID, Revision: op.Revision, Artifact: artifactMessage(op.Artifact), LeaseId: op.LeaseID, LeaseExpiresAtUnixMillis: op.LeaseUntil.UnixMilli(), DeadlineUnixMillis: op.Deadline.UnixMilli(), State: kylokv1.OperationState(kylokv1.OperationState_value["OPERATION_STATE_"+op.State]), DownloadUrl: "/artifacts/" + op.ID + "/" + op.Artifact.SHA256 + ".apk"})
+		response.Operations = append(response.Operations, &kylokv1.Operation{Id: op.ID, Revision: op.Revision, Artifact: artifactMessage(op.Artifact), LeaseId: op.LeaseID, LeaseExpiresAtUnixMillis: op.LeaseUntil.UnixMilli(), DeadlineUnixMillis: op.Deadline.UnixMilli(), NotBeforeUnixMillis: windowStartMillis(op.NotBefore), State: kylokv1.OperationState(kylokv1.OperationState_value["OPERATION_STATE_"+op.State]), DownloadUrl: "/artifacts/" + op.ID + "/" + op.Artifact.SHA256 + ".apk"})
 	}
 	for _, r := range snapshot.Receipts {
 		response.Receipts = append(response.Receipts, &kylokv1.ReportReceipt{ReportId: r.ReportID, Accepted: r.Accepted, Reason: r.Reason})
@@ -280,4 +316,12 @@ func (a *agentService) Sync(ctx context.Context, r *connect.Request[kylokv1.Sync
 // Convert verified store metadata to the shared wire shape without exposing artifact storage locations.
 func artifactMessage(a ports.Artifact) *kylokv1.Artifact {
 	return &kylokv1.Artifact{Sha256: a.SHA256, PackageName: a.PackageName, VersionCode: a.VersionCode, MinSdk: a.MinSDK, MaxSdk: a.MaxSDK, SigningCertificates: a.SigningCertificates, SupportedAbis: a.SupportedABIs, SizeBytes: a.SizeBytes}
+}
+
+// Encode immediate assignments as zero instead of Go's negative year-one Unix timestamp.
+func windowStartMillis(value time.Time) int64 {
+	if value.IsZero() {
+		return 0
+	}
+	return value.UnixMilli()
 }

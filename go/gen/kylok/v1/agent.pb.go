@@ -137,6 +137,7 @@ const (
 	OperationState_OPERATION_STATE_SUCCEEDED    OperationState = 4
 	OperationState_OPERATION_STATE_FAILED       OperationState = 5
 	OperationState_OPERATION_STATE_SUPERSEDED   OperationState = 6
+	OperationState_OPERATION_STATE_CANCELLED    OperationState = 7
 )
 
 // Enum value maps for OperationState.
@@ -149,6 +150,7 @@ var (
 		4: "OPERATION_STATE_SUCCEEDED",
 		5: "OPERATION_STATE_FAILED",
 		6: "OPERATION_STATE_SUPERSEDED",
+		7: "OPERATION_STATE_CANCELLED",
 	}
 	OperationState_value = map[string]int32{
 		"OPERATION_STATE_UNSPECIFIED":  0,
@@ -158,6 +160,7 @@ var (
 		"OPERATION_STATE_SUCCEEDED":    4,
 		"OPERATION_STATE_FAILED":       5,
 		"OPERATION_STATE_SUPERSEDED":   6,
+		"OPERATION_STATE_CANCELLED":    7,
 	}
 )
 
@@ -791,8 +794,12 @@ type SyncRequest struct {
 	ReportedRevision uint64             `protobuf:"varint,5,opt,name=reported_revision,json=reportedRevision,proto3" json:"reported_revision,omitempty"`
 	Reports          []*OperationReport `protobuf:"bytes,6,rep,name=reports,proto3" json:"reports,omitempty"`
 	PolicyReport     *PolicyReport      `protobuf:"bytes,7,opt,name=policy_report,json=policyReport,proto3" json:"policy_report,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Bounded active local work; lets the server stop cancellations even with unchanged desired intent.
+	RetainedOperationIds []string         `protobuf:"bytes,8,rep,name=retained_operation_ids,json=retainedOperationIds,proto3" json:"retained_operation_ids,omitempty"`
+	CommandReports       []*CommandReport `protobuf:"bytes,9,rep,name=command_reports,json=commandReports,proto3" json:"command_reports,omitempty"`
+	NetworkReport        *NetworkReport   `protobuf:"bytes,10,opt,name=network_report,json=networkReport,proto3" json:"network_report,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *SyncRequest) Reset() {
@@ -874,6 +881,27 @@ func (x *SyncRequest) GetPolicyReport() *PolicyReport {
 	return nil
 }
 
+func (x *SyncRequest) GetRetainedOperationIds() []string {
+	if x != nil {
+		return x.RetainedOperationIds
+	}
+	return nil
+}
+
+func (x *SyncRequest) GetCommandReports() []*CommandReport {
+	if x != nil {
+		return x.CommandReports
+	}
+	return nil
+}
+
+func (x *SyncRequest) GetNetworkReport() *NetworkReport {
+	if x != nil {
+		return x.NetworkReport
+	}
+	return nil
+}
+
 type SyncResponse struct {
 	state               protoimpl.MessageState   `protogen:"open.v1"`
 	Device              *Device                  `protobuf:"bytes,1,opt,name=device,proto3" json:"device,omitempty"`
@@ -885,8 +913,13 @@ type SyncResponse struct {
 	Compliance          []*ApplicationCompliance `protobuf:"bytes,7,rep,name=compliance,proto3" json:"compliance,omitempty"`
 	DesiredPolicy       *DesiredPolicy           `protobuf:"bytes,8,opt,name=desired_policy,json=desiredPolicy,proto3" json:"desired_policy,omitempty"`
 	PolicyCompliance    []*PolicyResult          `protobuf:"bytes,9,rep,name=policy_compliance,json=policyCompliance,proto3" json:"policy_compliance,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Work already delivered may finish; stop markers only prevent further local effects.
+	StoppedOperationIds  []string              `protobuf:"bytes,10,rep,name=stopped_operation_ids,json=stoppedOperationIds,proto3" json:"stopped_operation_ids,omitempty"`
+	Commands             []*Command            `protobuf:"bytes,11,rep,name=commands,proto3" json:"commands,omitempty"`
+	CommandReceipts      []string              `protobuf:"bytes,12,rep,name=command_receipts,json=commandReceipts,proto3" json:"command_receipts,omitempty"`
+	DesiredNetworkPolicy *DesiredNetworkPolicy `protobuf:"bytes,13,opt,name=desired_network_policy,json=desiredNetworkPolicy,proto3" json:"desired_network_policy,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *SyncResponse) Reset() {
@@ -978,6 +1011,34 @@ func (x *SyncResponse) GetDesiredPolicy() *DesiredPolicy {
 func (x *SyncResponse) GetPolicyCompliance() []*PolicyResult {
 	if x != nil {
 		return x.PolicyCompliance
+	}
+	return nil
+}
+
+func (x *SyncResponse) GetStoppedOperationIds() []string {
+	if x != nil {
+		return x.StoppedOperationIds
+	}
+	return nil
+}
+
+func (x *SyncResponse) GetCommands() []*Command {
+	if x != nil {
+		return x.Commands
+	}
+	return nil
+}
+
+func (x *SyncResponse) GetCommandReceipts() []string {
+	if x != nil {
+		return x.CommandReceipts
+	}
+	return nil
+}
+
+func (x *SyncResponse) GetDesiredNetworkPolicy() *DesiredNetworkPolicy {
+	if x != nil {
+		return x.DesiredNetworkPolicy
 	}
 	return nil
 }
@@ -1593,8 +1654,10 @@ type Operation struct {
 	DeadlineUnixMillis       int64                  `protobuf:"varint,6,opt,name=deadline_unix_millis,json=deadlineUnixMillis,proto3" json:"deadline_unix_millis,omitempty"`
 	State                    OperationState         `protobuf:"varint,7,opt,name=state,proto3,enum=kylok.v1.OperationState" json:"state,omitempty"`
 	DownloadUrl              string                 `protobuf:"bytes,8,opt,name=download_url,json=downloadUrl,proto3" json:"download_url,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	// Absolute window start; agents check again before any installation effect.
+	NotBeforeUnixMillis int64 `protobuf:"varint,9,opt,name=not_before_unix_millis,json=notBeforeUnixMillis,proto3" json:"not_before_unix_millis,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *Operation) Reset() {
@@ -1681,6 +1744,13 @@ func (x *Operation) GetDownloadUrl() string {
 		return x.DownloadUrl
 	}
 	return ""
+}
+
+func (x *Operation) GetNotBeforeUnixMillis() int64 {
+	if x != nil {
+		return x.NotBeforeUnixMillis
+	}
+	return 0
 }
 
 type OperationReport struct {
@@ -2354,6 +2424,545 @@ func (x *ConfigurationBundles) GetValues() []*ConfigurationBundle {
 	return nil
 }
 
+// A dispatch token is stable for the lifetime of a one-shot action. Agents checkpoint before calling Android.
+type Command struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Id                 string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Kind               string                 `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
+	DispatchToken      string                 `protobuf:"bytes,3,opt,name=dispatch_token,json=dispatchToken,proto3" json:"dispatch_token,omitempty"`
+	DeadlineUnixMillis int64                  `protobuf:"varint,4,opt,name=deadline_unix_millis,json=deadlineUnixMillis,proto3" json:"deadline_unix_millis,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *Command) Reset() {
+	*x = Command{}
+	mi := &file_kylok_v1_agent_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Command) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Command) ProtoMessage() {}
+
+func (x *Command) ProtoReflect() protoreflect.Message {
+	mi := &file_kylok_v1_agent_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Command.ProtoReflect.Descriptor instead.
+func (*Command) Descriptor() ([]byte, []int) {
+	return file_kylok_v1_agent_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *Command) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Command) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *Command) GetDispatchToken() string {
+	if x != nil {
+		return x.DispatchToken
+	}
+	return ""
+}
+
+func (x *Command) GetDeadlineUnixMillis() int64 {
+	if x != nil {
+		return x.DeadlineUnixMillis
+	}
+	return 0
+}
+
+type CommandReport struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CommandId     string                 `protobuf:"bytes,1,opt,name=command_id,json=commandId,proto3" json:"command_id,omitempty"`
+	DispatchToken string                 `protobuf:"bytes,2,opt,name=dispatch_token,json=dispatchToken,proto3" json:"dispatch_token,omitempty"`
+	// SUCCEEDED, FAILED or UNCERTAIN. An uncertain result must not trigger another effect.
+	State         string              `protobuf:"bytes,3,opt,name=state,proto3" json:"state,omitempty"`
+	ErrorCode     string              `protobuf:"bytes,4,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	Observation   *CommandObservation `protobuf:"bytes,5,opt,name=observation,proto3" json:"observation,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommandReport) Reset() {
+	*x = CommandReport{}
+	mi := &file_kylok_v1_agent_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommandReport) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommandReport) ProtoMessage() {}
+
+func (x *CommandReport) ProtoReflect() protoreflect.Message {
+	mi := &file_kylok_v1_agent_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommandReport.ProtoReflect.Descriptor instead.
+func (*CommandReport) Descriptor() ([]byte, []int) {
+	return file_kylok_v1_agent_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *CommandReport) GetCommandId() string {
+	if x != nil {
+		return x.CommandId
+	}
+	return ""
+}
+
+func (x *CommandReport) GetDispatchToken() string {
+	if x != nil {
+		return x.DispatchToken
+	}
+	return ""
+}
+
+func (x *CommandReport) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *CommandReport) GetErrorCode() string {
+	if x != nil {
+		return x.ErrorCode
+	}
+	return ""
+}
+
+func (x *CommandReport) GetObservation() *CommandObservation {
+	if x != nil {
+		return x.Observation
+	}
+	return nil
+}
+
+type CommandObservation struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	BootBefore    int64                  `protobuf:"varint,1,opt,name=boot_before,json=bootBefore,proto3" json:"boot_before,omitempty"`
+	BootAfter     int64                  `protobuf:"varint,2,opt,name=boot_after,json=bootAfter,proto3" json:"boot_after,omitempty"`
+	Secure        bool                   `protobuf:"varint,3,opt,name=secure,proto3" json:"secure,omitempty"`
+	Locked        bool                   `protobuf:"varint,4,opt,name=locked,proto3" json:"locked,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommandObservation) Reset() {
+	*x = CommandObservation{}
+	mi := &file_kylok_v1_agent_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommandObservation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommandObservation) ProtoMessage() {}
+
+func (x *CommandObservation) ProtoReflect() protoreflect.Message {
+	mi := &file_kylok_v1_agent_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommandObservation.ProtoReflect.Descriptor instead.
+func (*CommandObservation) Descriptor() ([]byte, []int) {
+	return file_kylok_v1_agent_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *CommandObservation) GetBootBefore() int64 {
+	if x != nil {
+		return x.BootBefore
+	}
+	return 0
+}
+
+func (x *CommandObservation) GetBootAfter() int64 {
+	if x != nil {
+		return x.BootAfter
+	}
+	return 0
+}
+
+func (x *CommandObservation) GetSecure() bool {
+	if x != nil {
+		return x.Secure
+	}
+	return false
+}
+
+func (x *CommandObservation) GetLocked() bool {
+	if x != nil {
+		return x.Locked
+	}
+	return false
+}
+
+// Delivered credentials stay in encrypted agent checkpoints, outside management reads/events.
+type WifiProfile struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Ssid          string                 `protobuf:"bytes,2,opt,name=ssid,proto3" json:"ssid,omitempty"`
+	Security      string                 `protobuf:"bytes,3,opt,name=security,proto3" json:"security,omitempty"`
+	Passphrase    []byte                 `protobuf:"bytes,4,opt,name=passphrase,proto3" json:"passphrase,omitempty"`
+	Hidden        bool                   `protobuf:"varint,5,opt,name=hidden,proto3" json:"hidden,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WifiProfile) Reset() {
+	*x = WifiProfile{}
+	mi := &file_kylok_v1_agent_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WifiProfile) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WifiProfile) ProtoMessage() {}
+
+func (x *WifiProfile) ProtoReflect() protoreflect.Message {
+	mi := &file_kylok_v1_agent_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WifiProfile.ProtoReflect.Descriptor instead.
+func (*WifiProfile) Descriptor() ([]byte, []int) {
+	return file_kylok_v1_agent_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *WifiProfile) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *WifiProfile) GetSsid() string {
+	if x != nil {
+		return x.Ssid
+	}
+	return ""
+}
+
+func (x *WifiProfile) GetSecurity() string {
+	if x != nil {
+		return x.Security
+	}
+	return ""
+}
+
+func (x *WifiProfile) GetPassphrase() []byte {
+	if x != nil {
+		return x.Passphrase
+	}
+	return nil
+}
+
+func (x *WifiProfile) GetHidden() bool {
+	if x != nil {
+		return x.Hidden
+	}
+	return false
+}
+
+type CACertificate struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Der           []byte                 `protobuf:"bytes,2,opt,name=der,proto3" json:"der,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CACertificate) Reset() {
+	*x = CACertificate{}
+	mi := &file_kylok_v1_agent_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CACertificate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CACertificate) ProtoMessage() {}
+
+func (x *CACertificate) ProtoReflect() protoreflect.Message {
+	mi := &file_kylok_v1_agent_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CACertificate.ProtoReflect.Descriptor instead.
+func (*CACertificate) Descriptor() ([]byte, []int) {
+	return file_kylok_v1_agent_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *CACertificate) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *CACertificate) GetDer() []byte {
+	if x != nil {
+		return x.Der
+	}
+	return nil
+}
+
+type NetworkPolicy struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PrimaryId     string                 `protobuf:"bytes,1,opt,name=primary_id,json=primaryId,proto3" json:"primary_id,omitempty"`
+	Profiles      []*WifiProfile         `protobuf:"bytes,2,rep,name=profiles,proto3" json:"profiles,omitempty"`
+	Certificates  []*CACertificate       `protobuf:"bytes,3,rep,name=certificates,proto3" json:"certificates,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NetworkPolicy) Reset() {
+	*x = NetworkPolicy{}
+	mi := &file_kylok_v1_agent_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NetworkPolicy) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NetworkPolicy) ProtoMessage() {}
+
+func (x *NetworkPolicy) ProtoReflect() protoreflect.Message {
+	mi := &file_kylok_v1_agent_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NetworkPolicy.ProtoReflect.Descriptor instead.
+func (*NetworkPolicy) Descriptor() ([]byte, []int) {
+	return file_kylok_v1_agent_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *NetworkPolicy) GetPrimaryId() string {
+	if x != nil {
+		return x.PrimaryId
+	}
+	return ""
+}
+
+func (x *NetworkPolicy) GetProfiles() []*WifiProfile {
+	if x != nil {
+		return x.Profiles
+	}
+	return nil
+}
+
+func (x *NetworkPolicy) GetCertificates() []*CACertificate {
+	if x != nil {
+		return x.Certificates
+	}
+	return nil
+}
+
+type DesiredNetworkPolicy struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Revision      uint64                 `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
+	Policy        *NetworkPolicy         `protobuf:"bytes,2,opt,name=policy,proto3" json:"policy,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DesiredNetworkPolicy) Reset() {
+	*x = DesiredNetworkPolicy{}
+	mi := &file_kylok_v1_agent_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DesiredNetworkPolicy) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DesiredNetworkPolicy) ProtoMessage() {}
+
+func (x *DesiredNetworkPolicy) ProtoReflect() protoreflect.Message {
+	mi := &file_kylok_v1_agent_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DesiredNetworkPolicy.ProtoReflect.Descriptor instead.
+func (*DesiredNetworkPolicy) Descriptor() ([]byte, []int) {
+	return file_kylok_v1_agent_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *DesiredNetworkPolicy) GetRevision() uint64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+func (x *DesiredNetworkPolicy) GetPolicy() *NetworkPolicy {
+	if x != nil {
+		return x.Policy
+	}
+	return nil
+}
+
+type NetworkReport struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Revision             uint64                 `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
+	State                string                 `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
+	Reason               string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	ActiveProfileId      string                 `protobuf:"bytes,4,opt,name=active_profile_id,json=activeProfileId,proto3" json:"active_profile_id,omitempty"`
+	ConnectivityVerified bool                   `protobuf:"varint,5,opt,name=connectivity_verified,json=connectivityVerified,proto3" json:"connectivity_verified,omitempty"`
+	CleanupComplete      bool                   `protobuf:"varint,6,opt,name=cleanup_complete,json=cleanupComplete,proto3" json:"cleanup_complete,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *NetworkReport) Reset() {
+	*x = NetworkReport{}
+	mi := &file_kylok_v1_agent_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NetworkReport) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NetworkReport) ProtoMessage() {}
+
+func (x *NetworkReport) ProtoReflect() protoreflect.Message {
+	mi := &file_kylok_v1_agent_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NetworkReport.ProtoReflect.Descriptor instead.
+func (*NetworkReport) Descriptor() ([]byte, []int) {
+	return file_kylok_v1_agent_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *NetworkReport) GetRevision() uint64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+func (x *NetworkReport) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *NetworkReport) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *NetworkReport) GetActiveProfileId() string {
+	if x != nil {
+		return x.ActiveProfileId
+	}
+	return ""
+}
+
+func (x *NetworkReport) GetConnectivityVerified() bool {
+	if x != nil {
+		return x.ConnectivityVerified
+	}
+	return false
+}
+
+func (x *NetworkReport) GetCleanupComplete() bool {
+	if x != nil {
+		return x.CleanupComplete
+	}
+	return false
+}
+
 var File_kylok_v1_agent_proto protoreflect.FileDescriptor
 
 const file_kylok_v1_agent_proto_rawDesc = "" +
@@ -2400,7 +3009,7 @@ const file_kylok_v1_agent_proto_rawDesc = "" +
 	"\n" +
 	"credential\x18\x02 \x01(\v2\x1c.kylok.v1.CredentialEnvelopeR\n" +
 	"credential\x12)\n" +
-	"\x10protocol_version\x18\x03 \x01(\rR\x0fprotocolVersion\"\xc3\x02\n" +
+	"\x10protocol_version\x18\x03 \x01(\rR\x0fprotocolVersion\"\xfb\x03\n" +
 	"\vSyncRequest\x12\x1b\n" +
 	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x121\n" +
 	"\tinventory\x18\x02 \x01(\v2\x13.kylok.v1.InventoryR\tinventory\x12)\n" +
@@ -2408,7 +3017,11 @@ const file_kylok_v1_agent_proto_rawDesc = "" +
 	"\bsequence\x18\x04 \x01(\x04R\bsequence\x12+\n" +
 	"\x11reported_revision\x18\x05 \x01(\x04R\x10reportedRevision\x123\n" +
 	"\areports\x18\x06 \x03(\v2\x19.kylok.v1.OperationReportR\areports\x12;\n" +
-	"\rpolicy_report\x18\a \x01(\v2\x16.kylok.v1.PolicyReportR\fpolicyReport\"\x80\x04\n" +
+	"\rpolicy_report\x18\a \x01(\v2\x16.kylok.v1.PolicyReportR\fpolicyReport\x124\n" +
+	"\x16retained_operation_ids\x18\b \x03(\tR\x14retainedOperationIds\x12@\n" +
+	"\x0fcommand_reports\x18\t \x03(\v2\x17.kylok.v1.CommandReportR\x0ecommandReports\x12>\n" +
+	"\x0enetwork_report\x18\n" +
+	" \x01(\v2\x17.kylok.v1.NetworkReportR\rnetworkReport\"\xe4\x05\n" +
 	"\fSyncResponse\x12(\n" +
 	"\x06device\x18\x01 \x01(\v2\x10.kylok.v1.DeviceR\x06device\x12)\n" +
 	"\x10protocol_version\x18\x02 \x01(\rR\x0fprotocolVersion\x12\x1a\n" +
@@ -2422,7 +3035,12 @@ const file_kylok_v1_agent_proto_rawDesc = "" +
 	"compliance\x18\a \x03(\v2\x1f.kylok.v1.ApplicationComplianceR\n" +
 	"compliance\x12>\n" +
 	"\x0edesired_policy\x18\b \x01(\v2\x17.kylok.v1.DesiredPolicyR\rdesiredPolicy\x12C\n" +
-	"\x11policy_compliance\x18\t \x03(\v2\x16.kylok.v1.PolicyResultR\x10policyCompliance\"\xbc\x04\n" +
+	"\x11policy_compliance\x18\t \x03(\v2\x16.kylok.v1.PolicyResultR\x10policyCompliance\x122\n" +
+	"\x15stopped_operation_ids\x18\n" +
+	" \x03(\tR\x13stoppedOperationIds\x12-\n" +
+	"\bcommands\x18\v \x03(\v2\x11.kylok.v1.CommandR\bcommands\x12)\n" +
+	"\x10command_receipts\x18\f \x03(\tR\x0fcommandReceipts\x12T\n" +
+	"\x16desired_network_policy\x18\r \x01(\v2\x1e.kylok.v1.DesiredNetworkPolicyR\x14desiredNetworkPolicy\"\xbc\x04\n" +
 	"\x06Policy\x12+\n" +
 	"\x11required_packages\x18\x01 \x03(\tR\x10requiredPackages\x125\n" +
 	"\tlock_task\x18\x02 \x01(\v2\x18.kylok.v1.LockTaskPolicyR\blockTask\x12,\n" +
@@ -2471,7 +3089,7 @@ const file_kylok_v1_agent_proto_rawDesc = "" +
 	"size_bytes\x18\b \x01(\x03R\tsizeBytes\"`\n" +
 	"\x12DesiredApplication\x12.\n" +
 	"\bartifact\x18\x01 \x01(\v2\x12.kylok.v1.ArtifactR\bartifact\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\x04R\brevision\"\xc7\x02\n" +
+	"\brevision\x18\x02 \x01(\x04R\brevision\"\xfc\x02\n" +
 	"\tOperation\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\brevision\x18\x02 \x01(\x04R\brevision\x12.\n" +
@@ -2480,7 +3098,8 @@ const file_kylok_v1_agent_proto_rawDesc = "" +
 	"\x1clease_expires_at_unix_millis\x18\x05 \x01(\x03R\x18leaseExpiresAtUnixMillis\x120\n" +
 	"\x14deadline_unix_millis\x18\x06 \x01(\x03R\x12deadlineUnixMillis\x12.\n" +
 	"\x05state\x18\a \x01(\x0e2\x18.kylok.v1.OperationStateR\x05state\x12!\n" +
-	"\fdownload_url\x18\b \x01(\tR\vdownloadUrl\"\xd6\x02\n" +
+	"\fdownload_url\x18\b \x01(\tR\vdownloadUrl\x123\n" +
+	"\x16not_before_unix_millis\x18\t \x01(\x03R\x13notBeforeUnixMillis\"\xd6\x02\n" +
 	"\x0fOperationReport\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\foperation_id\x18\x02 \x01(\tR\voperationId\x12\x19\n" +
@@ -2523,7 +3142,53 @@ const file_kylok_v1_agent_proto_rawDesc = "" +
 	"\x14ConfigurationStrings\x12\x16\n" +
 	"\x06values\x18\x01 \x03(\tR\x06values\"M\n" +
 	"\x14ConfigurationBundles\x125\n" +
-	"\x06values\x18\x01 \x03(\v2\x1d.kylok.v1.ConfigurationBundleR\x06values*z\n" +
+	"\x06values\x18\x01 \x03(\v2\x1d.kylok.v1.ConfigurationBundleR\x06values\"\x86\x01\n" +
+	"\aCommand\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04kind\x18\x02 \x01(\tR\x04kind\x12%\n" +
+	"\x0edispatch_token\x18\x03 \x01(\tR\rdispatchToken\x120\n" +
+	"\x14deadline_unix_millis\x18\x04 \x01(\x03R\x12deadlineUnixMillis\"\xca\x01\n" +
+	"\rCommandReport\x12\x1d\n" +
+	"\n" +
+	"command_id\x18\x01 \x01(\tR\tcommandId\x12%\n" +
+	"\x0edispatch_token\x18\x02 \x01(\tR\rdispatchToken\x12\x14\n" +
+	"\x05state\x18\x03 \x01(\tR\x05state\x12\x1d\n" +
+	"\n" +
+	"error_code\x18\x04 \x01(\tR\terrorCode\x12>\n" +
+	"\vobservation\x18\x05 \x01(\v2\x1c.kylok.v1.CommandObservationR\vobservation\"\x84\x01\n" +
+	"\x12CommandObservation\x12\x1f\n" +
+	"\vboot_before\x18\x01 \x01(\x03R\n" +
+	"bootBefore\x12\x1d\n" +
+	"\n" +
+	"boot_after\x18\x02 \x01(\x03R\tbootAfter\x12\x16\n" +
+	"\x06secure\x18\x03 \x01(\bR\x06secure\x12\x16\n" +
+	"\x06locked\x18\x04 \x01(\bR\x06locked\"\x85\x01\n" +
+	"\vWifiProfile\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04ssid\x18\x02 \x01(\tR\x04ssid\x12\x1a\n" +
+	"\bsecurity\x18\x03 \x01(\tR\bsecurity\x12\x1e\n" +
+	"\n" +
+	"passphrase\x18\x04 \x01(\fR\n" +
+	"passphrase\x12\x16\n" +
+	"\x06hidden\x18\x05 \x01(\bR\x06hidden\"1\n" +
+	"\rCACertificate\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
+	"\x03der\x18\x02 \x01(\fR\x03der\"\x9e\x01\n" +
+	"\rNetworkPolicy\x12\x1d\n" +
+	"\n" +
+	"primary_id\x18\x01 \x01(\tR\tprimaryId\x121\n" +
+	"\bprofiles\x18\x02 \x03(\v2\x15.kylok.v1.WifiProfileR\bprofiles\x12;\n" +
+	"\fcertificates\x18\x03 \x03(\v2\x17.kylok.v1.CACertificateR\fcertificates\"c\n" +
+	"\x14DesiredNetworkPolicy\x12\x1a\n" +
+	"\brevision\x18\x01 \x01(\x04R\brevision\x12/\n" +
+	"\x06policy\x18\x02 \x01(\v2\x17.kylok.v1.NetworkPolicyR\x06policy\"\xe5\x01\n" +
+	"\rNetworkReport\x12\x1a\n" +
+	"\brevision\x18\x01 \x01(\x04R\brevision\x12\x14\n" +
+	"\x05state\x18\x02 \x01(\tR\x05state\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\x12*\n" +
+	"\x11active_profile_id\x18\x04 \x01(\tR\x0factiveProfileId\x123\n" +
+	"\x15connectivity_verified\x18\x05 \x01(\bR\x14connectivityVerified\x12)\n" +
+	"\x10cleanup_complete\x18\x06 \x01(\bR\x0fcleanupComplete*z\n" +
 	"\vDeviceState\x12\x1c\n" +
 	"\x18DEVICE_STATE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15DEVICE_STATE_ENROLLED\x10\x01\x12\x18\n" +
@@ -2533,7 +3198,7 @@ const file_kylok_v1_agent_proto_rawDesc = "" +
 	"\x1cPERMISSION_STATE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18PERMISSION_STATE_DEFAULT\x10\x01\x12\x1c\n" +
 	"\x18PERMISSION_STATE_GRANTED\x10\x02\x12\x1b\n" +
-	"\x17PERMISSION_STATE_DENIED\x10\x03*\xe7\x01\n" +
+	"\x17PERMISSION_STATE_DENIED\x10\x03*\x86\x02\n" +
 	"\x0eOperationState\x12\x1f\n" +
 	"\x1bOPERATION_STATE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16OPERATION_STATE_QUEUED\x10\x01\x12\x1b\n" +
@@ -2541,7 +3206,8 @@ const file_kylok_v1_agent_proto_rawDesc = "" +
 	"\x1cOPERATION_STATE_WAITING_USER\x10\x03\x12\x1d\n" +
 	"\x19OPERATION_STATE_SUCCEEDED\x10\x04\x12\x1a\n" +
 	"\x16OPERATION_STATE_FAILED\x10\x05\x12\x1e\n" +
-	"\x1aOPERATION_STATE_SUPERSEDED\x10\x06*\xae\x01\n" +
+	"\x1aOPERATION_STATE_SUPERSEDED\x10\x06\x12\x1d\n" +
+	"\x19OPERATION_STATE_CANCELLED\x10\a*\xae\x01\n" +
 	"\x0fComplianceState\x12 \n" +
 	"\x1cCOMPLIANCE_STATE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18COMPLIANCE_STATE_APPLIED\x10\x01\x12\x1c\n" +
@@ -2581,7 +3247,7 @@ func file_kylok_v1_agent_proto_rawDescGZIP() []byte {
 }
 
 var file_kylok_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_kylok_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_kylok_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 36)
 var file_kylok_v1_agent_proto_goTypes = []any{
 	(DeviceState)(0),              // 0: kylok.v1.DeviceState
 	(PermissionState)(0),          // 1: kylok.v1.PermissionState
@@ -2616,6 +3282,14 @@ var file_kylok_v1_agent_proto_goTypes = []any{
 	(*ConfigurationValue)(nil),    // 30: kylok.v1.ConfigurationValue
 	(*ConfigurationStrings)(nil),  // 31: kylok.v1.ConfigurationStrings
 	(*ConfigurationBundles)(nil),  // 32: kylok.v1.ConfigurationBundles
+	(*Command)(nil),               // 33: kylok.v1.Command
+	(*CommandReport)(nil),         // 34: kylok.v1.CommandReport
+	(*CommandObservation)(nil),    // 35: kylok.v1.CommandObservation
+	(*WifiProfile)(nil),           // 36: kylok.v1.WifiProfile
+	(*CACertificate)(nil),         // 37: kylok.v1.CACertificate
+	(*NetworkPolicy)(nil),         // 38: kylok.v1.NetworkPolicy
+	(*DesiredNetworkPolicy)(nil),  // 39: kylok.v1.DesiredNetworkPolicy
+	(*NetworkReport)(nil),         // 40: kylok.v1.NetworkReport
 }
 var file_kylok_v1_agent_proto_depIdxs = []int32{
 	6,  // 0: kylok.v1.Inventory.applications:type_name -> kylok.v1.InstalledApplication
@@ -2627,44 +3301,52 @@ var file_kylok_v1_agent_proto_depIdxs = []int32{
 	5,  // 6: kylok.v1.SyncRequest.inventory:type_name -> kylok.v1.Inventory
 	23, // 7: kylok.v1.SyncRequest.reports:type_name -> kylok.v1.OperationReport
 	18, // 8: kylok.v1.SyncRequest.policy_report:type_name -> kylok.v1.PolicyReport
-	7,  // 9: kylok.v1.SyncResponse.device:type_name -> kylok.v1.Device
-	21, // 10: kylok.v1.SyncResponse.desired_applications:type_name -> kylok.v1.DesiredApplication
-	22, // 11: kylok.v1.SyncResponse.operations:type_name -> kylok.v1.Operation
-	24, // 12: kylok.v1.SyncResponse.receipts:type_name -> kylok.v1.ReportReceipt
-	25, // 13: kylok.v1.SyncResponse.compliance:type_name -> kylok.v1.ApplicationCompliance
-	17, // 14: kylok.v1.SyncResponse.desired_policy:type_name -> kylok.v1.DesiredPolicy
-	19, // 15: kylok.v1.SyncResponse.policy_compliance:type_name -> kylok.v1.PolicyResult
-	14, // 16: kylok.v1.Policy.lock_task:type_name -> kylok.v1.LockTaskPolicy
-	15, // 17: kylok.v1.Policy.restrictions:type_name -> kylok.v1.RestrictionRule
-	16, // 18: kylok.v1.Policy.permissions:type_name -> kylok.v1.PermissionRule
-	27, // 19: kylok.v1.Policy.managed_configurations:type_name -> kylok.v1.ManagedConfiguration
-	1,  // 20: kylok.v1.PermissionRule.state:type_name -> kylok.v1.PermissionState
-	13, // 21: kylok.v1.DesiredPolicy.policy:type_name -> kylok.v1.Policy
-	19, // 22: kylok.v1.PolicyReport.results:type_name -> kylok.v1.PolicyResult
-	3,  // 23: kylok.v1.PolicyResult.state:type_name -> kylok.v1.ComplianceState
-	20, // 24: kylok.v1.DesiredApplication.artifact:type_name -> kylok.v1.Artifact
-	20, // 25: kylok.v1.Operation.artifact:type_name -> kylok.v1.Artifact
-	2,  // 26: kylok.v1.Operation.state:type_name -> kylok.v1.OperationState
-	2,  // 27: kylok.v1.OperationReport.state:type_name -> kylok.v1.OperationState
-	6,  // 28: kylok.v1.OperationReport.observed:type_name -> kylok.v1.InstalledApplication
-	3,  // 29: kylok.v1.ApplicationCompliance.state:type_name -> kylok.v1.ComplianceState
-	4,  // 30: kylok.v1.ErrorDetail.reason:type_name -> kylok.v1.ErrorReason
-	28, // 31: kylok.v1.ManagedConfiguration.values:type_name -> kylok.v1.ConfigurationBundle
-	29, // 32: kylok.v1.ConfigurationBundle.entries:type_name -> kylok.v1.ConfigurationEntry
-	30, // 33: kylok.v1.ConfigurationEntry.value:type_name -> kylok.v1.ConfigurationValue
-	31, // 34: kylok.v1.ConfigurationValue.strings_value:type_name -> kylok.v1.ConfigurationStrings
-	28, // 35: kylok.v1.ConfigurationValue.bundle_value:type_name -> kylok.v1.ConfigurationBundle
-	32, // 36: kylok.v1.ConfigurationValue.bundles_value:type_name -> kylok.v1.ConfigurationBundles
-	28, // 37: kylok.v1.ConfigurationBundles.values:type_name -> kylok.v1.ConfigurationBundle
-	8,  // 38: kylok.v1.AgentService.Enroll:input_type -> kylok.v1.EnrollRequest
-	11, // 39: kylok.v1.AgentService.Sync:input_type -> kylok.v1.SyncRequest
-	10, // 40: kylok.v1.AgentService.Enroll:output_type -> kylok.v1.EnrollResponse
-	12, // 41: kylok.v1.AgentService.Sync:output_type -> kylok.v1.SyncResponse
-	40, // [40:42] is the sub-list for method output_type
-	38, // [38:40] is the sub-list for method input_type
-	38, // [38:38] is the sub-list for extension type_name
-	38, // [38:38] is the sub-list for extension extendee
-	0,  // [0:38] is the sub-list for field type_name
+	34, // 9: kylok.v1.SyncRequest.command_reports:type_name -> kylok.v1.CommandReport
+	40, // 10: kylok.v1.SyncRequest.network_report:type_name -> kylok.v1.NetworkReport
+	7,  // 11: kylok.v1.SyncResponse.device:type_name -> kylok.v1.Device
+	21, // 12: kylok.v1.SyncResponse.desired_applications:type_name -> kylok.v1.DesiredApplication
+	22, // 13: kylok.v1.SyncResponse.operations:type_name -> kylok.v1.Operation
+	24, // 14: kylok.v1.SyncResponse.receipts:type_name -> kylok.v1.ReportReceipt
+	25, // 15: kylok.v1.SyncResponse.compliance:type_name -> kylok.v1.ApplicationCompliance
+	17, // 16: kylok.v1.SyncResponse.desired_policy:type_name -> kylok.v1.DesiredPolicy
+	19, // 17: kylok.v1.SyncResponse.policy_compliance:type_name -> kylok.v1.PolicyResult
+	33, // 18: kylok.v1.SyncResponse.commands:type_name -> kylok.v1.Command
+	39, // 19: kylok.v1.SyncResponse.desired_network_policy:type_name -> kylok.v1.DesiredNetworkPolicy
+	14, // 20: kylok.v1.Policy.lock_task:type_name -> kylok.v1.LockTaskPolicy
+	15, // 21: kylok.v1.Policy.restrictions:type_name -> kylok.v1.RestrictionRule
+	16, // 22: kylok.v1.Policy.permissions:type_name -> kylok.v1.PermissionRule
+	27, // 23: kylok.v1.Policy.managed_configurations:type_name -> kylok.v1.ManagedConfiguration
+	1,  // 24: kylok.v1.PermissionRule.state:type_name -> kylok.v1.PermissionState
+	13, // 25: kylok.v1.DesiredPolicy.policy:type_name -> kylok.v1.Policy
+	19, // 26: kylok.v1.PolicyReport.results:type_name -> kylok.v1.PolicyResult
+	3,  // 27: kylok.v1.PolicyResult.state:type_name -> kylok.v1.ComplianceState
+	20, // 28: kylok.v1.DesiredApplication.artifact:type_name -> kylok.v1.Artifact
+	20, // 29: kylok.v1.Operation.artifact:type_name -> kylok.v1.Artifact
+	2,  // 30: kylok.v1.Operation.state:type_name -> kylok.v1.OperationState
+	2,  // 31: kylok.v1.OperationReport.state:type_name -> kylok.v1.OperationState
+	6,  // 32: kylok.v1.OperationReport.observed:type_name -> kylok.v1.InstalledApplication
+	3,  // 33: kylok.v1.ApplicationCompliance.state:type_name -> kylok.v1.ComplianceState
+	4,  // 34: kylok.v1.ErrorDetail.reason:type_name -> kylok.v1.ErrorReason
+	28, // 35: kylok.v1.ManagedConfiguration.values:type_name -> kylok.v1.ConfigurationBundle
+	29, // 36: kylok.v1.ConfigurationBundle.entries:type_name -> kylok.v1.ConfigurationEntry
+	30, // 37: kylok.v1.ConfigurationEntry.value:type_name -> kylok.v1.ConfigurationValue
+	31, // 38: kylok.v1.ConfigurationValue.strings_value:type_name -> kylok.v1.ConfigurationStrings
+	28, // 39: kylok.v1.ConfigurationValue.bundle_value:type_name -> kylok.v1.ConfigurationBundle
+	32, // 40: kylok.v1.ConfigurationValue.bundles_value:type_name -> kylok.v1.ConfigurationBundles
+	28, // 41: kylok.v1.ConfigurationBundles.values:type_name -> kylok.v1.ConfigurationBundle
+	35, // 42: kylok.v1.CommandReport.observation:type_name -> kylok.v1.CommandObservation
+	36, // 43: kylok.v1.NetworkPolicy.profiles:type_name -> kylok.v1.WifiProfile
+	37, // 44: kylok.v1.NetworkPolicy.certificates:type_name -> kylok.v1.CACertificate
+	38, // 45: kylok.v1.DesiredNetworkPolicy.policy:type_name -> kylok.v1.NetworkPolicy
+	8,  // 46: kylok.v1.AgentService.Enroll:input_type -> kylok.v1.EnrollRequest
+	11, // 47: kylok.v1.AgentService.Sync:input_type -> kylok.v1.SyncRequest
+	10, // 48: kylok.v1.AgentService.Enroll:output_type -> kylok.v1.EnrollResponse
+	12, // 49: kylok.v1.AgentService.Sync:output_type -> kylok.v1.SyncResponse
+	48, // [48:50] is the sub-list for method output_type
+	46, // [46:48] is the sub-list for method input_type
+	46, // [46:46] is the sub-list for extension type_name
+	46, // [46:46] is the sub-list for extension extendee
+	0,  // [0:46] is the sub-list for field type_name
 }
 
 func init() { file_kylok_v1_agent_proto_init() }
@@ -2687,7 +3369,7 @@ func file_kylok_v1_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kylok_v1_agent_proto_rawDesc), len(file_kylok_v1_agent_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   28,
+			NumMessages:   36,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

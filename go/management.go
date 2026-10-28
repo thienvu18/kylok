@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"slices"
 	"time"
 
@@ -92,6 +93,7 @@ type Operation struct {
 	Artifact        Artifact              `json:"artifact"`
 	Revision        uint64                `json:"revision"`
 	State           string                `json:"state"`
+	NotBefore       time.Time             `json:"not_before"`
 	Deadline        time.Time             `json:"deadline"`
 	DownloadedBytes int64                 `json:"downloaded_bytes"`
 	ErrorCode       string                `json:"error_code"`
@@ -204,6 +206,11 @@ func cursorBinding(kind, scope, device, state, correlation string) string {
 
 // Decode only the supported bounded cursor shape and reject reuse across scopes/devices/filters.
 func readPage(page PageRequest, binding string) (string, int, error) {
+	return readKeysetPage(page, binding, devicePattern)
+}
+
+// Validate the key shape appropriate to the resource while preserving query-bound opaque cursors.
+func readKeysetPage(page PageRequest, binding string, pattern *regexp.Regexp) (string, int, error) {
 	if page.Limit == 0 {
 		page.Limit = defaultPageSize
 	}
@@ -224,7 +231,7 @@ func readPage(page PageRequest, binding string) (string, int, error) {
 		return "", 0, fmt.Errorf("%w: malformed cursor", ErrInvalidArgument)
 	}
 	var extra any
-	if decoder.Decode(&extra) != io.EOF || cursor.Version != 1 || cursor.Binding != binding || !devicePattern.MatchString(cursor.After) {
+	if decoder.Decode(&extra) != io.EOF || cursor.Version != 1 || cursor.Binding != binding || !pattern.MatchString(cursor.After) {
 		return "", 0, fmt.Errorf("%w: cursor does not match query", ErrInvalidArgument)
 	}
 	return cursor.After, page.Limit, nil
@@ -270,7 +277,7 @@ func (s *SDK) QueryOperations(ctx context.Context, scope, device string, filter 
 	if err := s.checkOpen(ctx); err != nil {
 		return OperationPage{}, err
 	}
-	if !idPattern.MatchString(scope) || !devicePattern.MatchString(device) || !slices.Contains([]string{"", "QUEUED", "RUNNING", "WAITING_USER", "SUCCEEDED", "FAILED", "SUPERSEDED"}, filter.State) {
+	if !idPattern.MatchString(scope) || !devicePattern.MatchString(device) || !slices.Contains([]string{"", "QUEUED", "RUNNING", "WAITING_USER", "SUCCEEDED", "FAILED", "SUPERSEDED", "CANCELLED"}, filter.State) {
 		return OperationPage{}, ErrInvalidArgument
 	}
 	binding := cursorBinding("operations", scope, device, filter.State, "")
@@ -312,7 +319,7 @@ func publicArtifact(value ports.Artifact) Artifact {
 
 // Strip lease/checkpoint fields at the host boundary while retaining truthful observed results.
 func publicOperation(value ports.Operation) Operation {
-	result := Operation{ID: value.ID, DeviceID: value.DeviceID, Artifact: publicArtifact(value.Artifact), Revision: value.Revision, State: value.State, Deadline: value.Deadline, DownloadedBytes: value.DownloadedBytes, ErrorCode: value.ErrorCode, ErrorMessage: value.ErrorMessage}
+	result := Operation{ID: value.ID, DeviceID: value.DeviceID, Artifact: publicArtifact(value.Artifact), Revision: value.Revision, State: value.State, Deadline: value.Deadline, NotBefore: value.NotBefore, DownloadedBytes: value.DownloadedBytes, ErrorCode: value.ErrorCode, ErrorMessage: value.ErrorMessage}
 	if value.Observed != nil {
 		observed := publicInstalled(*value.Observed)
 		result.Observed = &observed

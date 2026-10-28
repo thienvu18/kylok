@@ -34,7 +34,17 @@ internal class SyncCheckpoint(private val storage: StateAccess) {
                 val builder = SyncRequest.newBuilder().setDeviceId(state.getString("device_id"))
                     .setProtocolVersion(BuildConfig.PROTOCOL_VERSION).setSequence(state.optLong("sequence") + 1)
                     .setReportedRevision(state.optLong("revision")).setInventory(inventory)
+                if (state.has("network_report")) builder.networkReport = NetworkReport.parseFrom(decode(state.getString("network_report")))
                 if (state.has("policy_report")) builder.policyReport = PolicyReport.parseFrom(decode(state.getString("policy_report")))
+                val local = state.objectValue("operations")
+                for (id in local.keys().asSequence().sorted()) {
+                    val record = local.getJSONObject(id)
+                    if (!record.optBoolean("terminal") && !record.optBoolean("superseded")) builder.addRetainedOperationIds(id)
+                }
+                require(builder.retainedOperationIdsCount <= 64)
+                val commandReports = state.objectValue("command_reports")
+                require(commandReports.length() <= 16)
+                for (id in commandReports.keys().asSequence().sorted()) builder.addCommandReports(CommandReport.parseFrom(decode(commandReports.getString(id))))
                 val reports = state.array("reports")
                 // The server accepts at most 64 reports in one immutable sync request; retain the rest.
                 for (index in 0 until minOf(64, reports.length())) builder.addReports(OperationReport.parseFrom(decode(reports.getString(index))))
@@ -61,6 +71,14 @@ internal class SyncCheckpoint(private val storage: StateAccess) {
                     if (response.desiredPolicy.revision == previous.desiredPolicy.revision) require(response.desiredPolicy == previous.desiredPolicy)
                 }
             }
+            if (response.hasDesiredNetworkPolicy()) require(response.desiredNetworkPolicy.hasPolicy() && response.desiredNetworkPolicy.revision > 0 && response.desiredNetworkPolicy.revision <= response.device.desiredRevision)
+            if (state.has("snapshot")) {
+                val prior = SyncResponse.parseFrom(decode(state.getString("snapshot")))
+                if (prior.hasDesiredNetworkPolicy()) {
+                    require(response.hasDesiredNetworkPolicy() && response.desiredNetworkPolicy.revision >= prior.desiredNetworkPolicy.revision)
+                    if (response.desiredNetworkPolicy.revision == prior.desiredNetworkPolicy.revision) require(response.desiredNetworkPolicy == prior.desiredNetworkPolicy)
+                }
+            }
             val acknowledged = response.receiptsList.map { it.reportId }.toSet()
             val remaining = JSONArray()
             val reports = state.array("reports")
@@ -71,6 +89,25 @@ internal class SyncCheckpoint(private val storage: StateAccess) {
             state.put("reports", remaining).put("sequence", response.sequence)
                 .put("revision", response.device.desiredRevision).put("snapshot", encode(response))
             state.remove("inflight")
+            val commands = state.objectValue("commands")
+            val commandReports = state.objectValue("command_reports")
+            val sentCommandReports = pending.commandReportsList.map { it.commandId }.toSet()
+            require(response.commandReceiptsList.size <= 16 && response.commandReceiptsList.all { it in sentCommandReports })
+            for (id in response.commandReceiptsList) { commandReports.remove(id); commands.remove(id) }
+            require(response.commandsCount <= 1)
+            val delivered = response.commandsList.map { it.id }.toSet()
+            for (id in commands.keys().asSequence().toList()) {
+                val record = commands.getJSONObject(id)
+                // Omission stops work that has not crossed its pre-effect checkpoint. Armed work is only observed.
+                if (id !in delivered && record.optString("stage") !in setOf("armed", "terminal")) commands.remove(id)
+            }
+            for (command in response.commandsList) {
+                require(command.id.matches(Regex("[A-Za-z0-9_-]{43}")) && command.dispatchToken.matches(Regex("[0-9a-f]{48}")) &&
+                    command.kind in setOf("REBOOT", "LOCK") && command.deadlineUnixMillis > 0 && command.id !in response.commandReceiptsList)
+                val record = commands.optJSONObject(command.id) ?: JSONObject()
+                if (record.has("command")) require(Command.parseFrom(decode(record.getString("command"))) == command)
+                record.put("command", encode(command)); commands.put(command.id, record)
+            }
             val operations = state.objectValue("operations")
             val desired = response.desiredApplicationsList.associateBy { it.artifact.packageName }
             // A newer desired package revision supersedes local pending work.
@@ -80,7 +117,11 @@ internal class SyncCheckpoint(private val storage: StateAccess) {
                 val want = desired[op.artifact.packageName]
                 if (want == null || want.artifact.sha256 != op.artifact.sha256 || want.revision != op.revision) local.put("superseded", true)
             }
+            val stopped = response.stoppedOperationIdsList.toSet()
+            require(stopped.size <= 64 && stopped.all { it in pending.retainedOperationIdsList })
+            for (id in stopped) operations.optJSONObject(id)?.put("superseded", true)
             for (op in response.operationsList) {
+                require(op.id !in stopped && op.notBeforeUnixMillis >= 0 && op.notBeforeUnixMillis < op.deadlineUnixMillis)
                 require(op.id.matches(Regex("[A-Za-z0-9_-]{43}")) && op.leaseId.matches(Regex("[0-9a-f]{48}")))
                 val want = desired[op.artifact.packageName]
                 require(want != null && want.revision == op.revision && want.artifact == op.artifact)
@@ -88,7 +129,7 @@ internal class SyncCheckpoint(private val storage: StateAccess) {
                 val previous = local.optString("operation")
                 if (previous.isNotEmpty()) {
                     val old = Operation.parseFrom(decode(previous))
-                    require(old.artifact == op.artifact && old.revision == op.revision)
+                    require(old.artifact == op.artifact && old.revision == op.revision && old.notBeforeUnixMillis == op.notBeforeUnixMillis && old.deadlineUnixMillis == op.deadlineUnixMillis)
                     if (old.leaseId != op.leaseId) local.remove("reported")
                 }
                 local.put("operation", encode(op)); operations.put(op.id, local)

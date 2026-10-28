@@ -12,7 +12,7 @@ import (
 )
 
 var schemaPattern = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,62}$`)
-var tableNames = map[string]bool{"change_heads": true, "changes": true, "projection_scans": true, "projection_items": true, "schema_version": true, "enrollments": true, "devices": true, "artifacts": true, "operations": true, "desired_apps": true, "reports": true, "policies": true, "policy_requests": true}
+var tableNames = map[string]bool{"network_policies": true, "network_requests": true, "commands": true, "fleet_groups": true, "fleet_assignments": true, "change_heads": true, "changes": true, "projection_scans": true, "projection_items": true, "schema_version": true, "enrollments": true, "devices": true, "artifacts": true, "operations": true, "desired_apps": true, "reports": true, "policies": true, "policy_requests": true}
 
 type database struct {
 	pool            *sql.DB

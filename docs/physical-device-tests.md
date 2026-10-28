@@ -309,6 +309,25 @@ For mixed private-CA enrollment, run `prepare-local-server.sh 192.168.101.5 http
 
 The standard CLI uses SQLite. PostgreSQL/change-feed host tests are automated server integration checks; this physical run does not prove a PostgreSQL-backed host deployment. The default DPC uses default scheduling; testing custom `HostOptions` on hardware requires an APK that calls `configure` in its Application, such as the independent Maven consumer host. Record that build separately rather than attributing default-host results to it.
 
+## Fleet and network qualification
+
+Use paired SDKs from the candidate source and fresh development server data. Do not attribute the recorded POCO build to these APIs. Keep the signing identity and record the candidate APK/version. The [CLI](local-server.md#fleet-commands-and-network-lifecycle) and [fleet](fleet-operations.md)/[network](managed-network.md) contracts define submission and observed outcomes.
+
+| Case | Manual action and required evidence |
+| --- | --- |
+| Group deployment | Create a group containing the test device, freeze a fleet request and advance it. Record the original group revision, per-device operation ID and observed install. Change membership; retrying that batch must not add targets or repeat the completed operation. More than one physical target needs its own record. |
+| Absolute window | Schedule a compatible higher-version signed app with a future start/deadline. Sync before start: no installation effect. Sync inside the window: observe the assigned version. Queue another future request and cancel it before dispatch: it stays cancelled with no installation. A delivered/committed effect is a separate cancellation race and may finish. |
+| Secure lock | With swipe-only unlock, submit `LOCK`: expect `SECURE_LOCK_REQUIRED`, never success. Set a lab PIN/password yourself, then submit a new key. Confirm the screen is locked and the server records secure/locked readback. Keep the credential available; the SDK does not create or recover it. |
+| Reboot | Submit `REBOOT`, observe an actual restart, unlock, then record the same identity and a successful command with increased boot count. Reuse its key: no second reboot. Reconnection alone cannot pass this case. |
+| Wi-Fi prerequisites | Use a baseline/recovery SSID and a different managed SSID; both must reach the same server IP/domain. Keep baseline reachable. Grant precise location and Nearby Wi-Fi devices in the example dashboard when prompted. Record unrelated saved networks/CAs without exposing credentials. |
+| Apply and credential rotation | Assign a protected profile using a private immutable secret reference. Sync; confirm primary association and authenticated management/cleanup flags. Change the AP credential in a controlled lab, submit a new reference/key and confirm recovery-first rotation, reconnect and restart persistence. |
+| Bad credentials / unreachable target | Submit an intentionally wrong managed credential or block the new route's server access. Confirm return to verified recovery, prior managed credentials retained and truthful failure/pending state. Retry the same revision: no repeated migration loop. Restore connectivity and use a new key to retry. |
+| Lost primary / reboot | Remove primary connectivity while leaving recovery reachable. Confirm authenticated automatic recovery without deleting managed or unrelated configurations. Restart with LAN temporarily unavailable; record recovery after reconnect. |
+| CA overlap and release | Use a trusted HTTPS origin with correct IP/DNS SANs. Deliver overlapping roots, rotate the server chain, then remove the old managed root. Verify management and APK download after each step. A CA already present or embedded in host base trust must remain usable after release. Expired/untrusted or hostname-mismatched chains must fail without HTTP downgrade. |
+| Policy release | Submit an empty network document. Confirm the baseline route with remaining trust before managed resources disappear. If the server is reachable only through the root being removed, release must fail/persist recovery rather than claim cleanup. Verify unmanaged settings remain. |
+
+Run network cases separately for LAN IP and a real LAN-resolvable hostname over HTTP/HTTPS. Mark unavailable combinations `NOT RUN`; do not invent DNS or TLS evidence. HTTP has no transport confidentiality. Revoke only after network/policy cleanup and evidence capture.
+
 ## 13. Revoke last
 
 Release all managed policy first and confirm cleanup while the tablet can still sync. Then:

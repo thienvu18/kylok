@@ -34,6 +34,8 @@ class EnrollmentWorker(context: Context, params: WorkerParameters) : Worker(cont
                 .setModel("${Build.MANUFACTURER} ${Build.MODEL}").setBuildFingerprint(Build.FINGERPRINT)
                 .setAgentVersion(BuildConfig.SDK_VERSION).setDeviceOwner(true).addCapabilities("install_apk")
                 .addCapabilities("durable_sync").addAllCapabilities(AndroidPolicyPlatform.CAPABILITIES)
+                .addAllCapabilities(AndroidCommandPlatform.CAPABILITIES)
+                .addAllCapabilities(if (applicationContext.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_WIFI)) AndroidNetworkPlatform.CAPABILITIES else emptyList())
                 .addAllSupportedAbis(Build.SUPPORTED_ABIS.toList()).build()
             val access = AgentStorage.access(applicationContext)
             val policy = PolicyEngine(access, AndroidPolicyPlatform(applicationContext, access))
@@ -41,8 +43,11 @@ class EnrollmentWorker(context: Context, params: WorkerParameters) : Worker(cont
             // offline reboot; network delivery is not a prerequisite for repair.
             if (state.has("credential")) policy.run()
             check(Kylok.lanGranted(applicationContext)) { "LAN permission required" }
-            AgentClient.connect(state.getString("server")).use { client ->
-                if (!state.has("credential")) {
+            val networks = AndroidNetworkPlatform(applicationContext, access)
+            val networkEngine = NetworkEngine(access, networks)
+            if (state.has("credential")) { networkEngine.recover(); networkEngine.recoverConnectivity() }
+            if (!state.has("credential")) {
+                AgentClient.connect(state.getString("server")).use { client ->
                     val keys = AgentStorage.identity()
                     AgentStorage.update(applicationContext) { it.put("lifecycle", "ENROLLING") }
                     val response = client.enroll(state.getString("token"), state.getString("attempt"),
@@ -54,39 +59,42 @@ class EnrollmentWorker(context: Context, params: WorkerParameters) : Worker(cont
                             .put("credential", credential)
                         it.remove("token")
                     }
-                    state = AgentStorage.read(applicationContext)
                 }
-                val platform = AndroidInstallPlatform(applicationContext, access)
-                val checkpoint = SyncCheckpoint(access)
-                var pending = false
-                // Bound one worker run: deliver desired state, reconcile it, then send resulting observations.
-                repeat(3) {
-                    if (isStopped) throw IOException("Cancelled")
-                    val current = access.read()
-                    val builder = inventory.toBuilder()
-                    val names = mutableSetOf(applicationContext.packageName)
-                    if (current.has("snapshot")) {
-                        val snapshot = io.github.thienvu18.kylok.proto.v1.SyncResponse.parseFrom(decode(current.getString("snapshot")))
-                        names.addAll(snapshot.desiredApplicationsList.map { it.artifact.packageName })
-                    }
-                    val operations = current.objectValue("operations")
-                    for (id in operations.keys()) {
-                        val op = Operation.parseFrom(decode(operations.getJSONObject(id).getString("operation")))
-                        names += op.artifact.packageName
-                    }
-                    for (name in names.take(128)) platform.installed(name)?.let { builder.addApplications(it) }
-                    val request = checkpoint.request(builder.build())
-                    val response = client.sync(request, current.getString("credential"))
-                    checkpoint.accept(response)
-                    pending = InstallEngine(access, platform).run()
-                    pending = policy.run() || pending
-                    AgentStorage.update(applicationContext) {
-                        it.put("lifecycle", "MANAGED").put("result", "Authenticated sync revision ${response.device.desiredRevision}")
-                    }
-                    Kylok.notifyStatus(applicationContext)
-                }
-                if (pending || access.read().array("reports").length() > 0) return Result.retry()
             }
+            val platform = AndroidInstallPlatform(applicationContext, access)
+            val checkpoint = SyncCheckpoint(access)
+            var pending = false
+            // Bound one worker run: deliver desired state, reconcile it, then send resulting observations.
+            repeat(3) {
+                if (isStopped) throw IOException("Cancelled")
+                val current = access.read()
+                val builder = inventory.toBuilder()
+                val names = mutableSetOf(applicationContext.packageName)
+                if (current.has("snapshot")) {
+                    val snapshot = io.github.thienvu18.kylok.proto.v1.SyncResponse.parseFrom(decode(current.getString("snapshot")))
+                    names.addAll(snapshot.desiredApplicationsList.map { it.artifact.packageName })
+                }
+                val operations = current.objectValue("operations")
+                for (id in operations.keys()) {
+                    val op = Operation.parseFrom(decode(operations.getJSONObject(id).getString("operation")))
+                    names += op.artifact.packageName
+                }
+                for (name in names.take(128)) platform.installed(name)?.let { builder.addApplications(it) }
+                val request = checkpoint.request(builder.build())
+                // Rebuild each channel so committed CA rotation and selected-network DNS take effect immediately.
+                val selected = if (current.has("network_current") || current.has("network_transaction")) networks.selectedNetwork() else null
+                val response = AgentClient.connect(current.getString("server"), NetworkTrust.factory(current), selected).use { client -> client.sync(request, current.getString("credential")) }
+                checkpoint.accept(response)
+                pending = networkEngine.run()
+                if (!access.read().has("network_transaction")) pending = CommandEngine(access, AndroidCommandPlatform(applicationContext)).run() || pending
+                pending = InstallEngine(access, platform).run() || pending
+                pending = policy.run() || pending
+                AgentStorage.update(applicationContext) {
+                    it.put("lifecycle", "MANAGED").put("result", "Authenticated sync revision ${response.device.desiredRevision}")
+                }
+                Kylok.notifyStatus(applicationContext)
+            }
+            if (pending || access.read().array("reports").length() > 0 || access.read().objectValue("command_reports").length() > 0) return Result.retry()
             return Result.success()
         } catch (error: StatusRuntimeException) {
             val code = error.status.code

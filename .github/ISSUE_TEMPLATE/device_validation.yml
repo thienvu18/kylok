@@ -1,0 +1,86 @@
+name: Physical device validation report
+description: Submit test results and behavioral evidence from testing Kylok on physical Android hardware.
+title: "[Device Report]: <Brand & Model> (Android <Version>, API <API>)"
+labels: ["compatibility", "device-evidence"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to record hardware qualification results as outlined in [docs/provisioning.md](https://github.com/thienvu18/kylok/blob/main/docs/provisioning.md) and [docs/compatibility.md](https://github.com/thienvu18/kylok/blob/main/docs/compatibility.md).
+        Evidence collected here helps maintain Kylok's device compatibility matrix.
+  - type: input
+    id: device_model
+    attributes:
+      label: Device Brand and Model
+      placeholder: "e.g., POCO Pad X1, Samsung Galaxy Tab Active4 Pro, Pixel 8"
+    validations:
+      required: true
+  - type: input
+    id: android_version
+    attributes:
+      label: Android Version and API Level
+      placeholder: "e.g., Android 15 (API 35)"
+    validations:
+      required: true
+  - type: input
+    id: firmware_build
+    attributes:
+      label: OEM Firmware Build & Security Patch Level
+      placeholder: "e.g., HyperOS 1.0.9.0.VNXMIXM / Security patch Oct 2026"
+    validations:
+      required: true
+  - type: input
+    id: source_revision
+    attributes:
+      label: Kylok Source Revision / Build Identity
+      placeholder: "e.g., git commit abc1234 or v0.1.0-dev.40316176224"
+    validations:
+      required: true
+  - type: dropdown
+    id: transport
+    attributes:
+      label: Transport Configuration
+      options:
+        - "HTTPS (domain origin with public CA certificate)"
+        - "HTTPS (IP or internal domain with custom CA certificate)"
+        - "HTTP (trusted LAN evaluation)"
+    validations:
+      required: true
+  - type: checkboxes
+    id: tested_workflows
+    attributes:
+      label: Workflows Verified
+      description: Select the capabilities exercised on this physical device.
+      options:
+        - label: "Device Owner provisioning via single-use QR code"
+        - label: "Signed APK delivery and installation"
+        - label: "APK update to higher version code"
+        - label: "Rejection of APK downgrade attempt"
+        - label: "Managed configuration delivery and release"
+        - label: "Android Lock Task / Kiosk mode"
+        - label: "Camera restriction policy"
+        - label: "Screenshot restriction policy"
+        - label: "Account modification restriction policy"
+        - label: "Interrupted download resumption"
+        - label: "Server restart / LAN recovery"
+        - label: "Device reboot recovery and persistent state verification"
+  - type: textarea
+    id: observations
+    attributes:
+      label: Observations and OEM Quirks
+      description: |
+        Document any platform-specific quirks, unconfirmed restrictions, or OEM skin idiosyncrasies.
+        Example: OEM settings permitted app uninstall despite DISALLOW_UNINSTALL_APPS reported applied.
+      placeholder: |
+        - Restriction observation: ...
+        - Lifecycle behavior: ...
+        - Recovery outcome: ...
+    validations:
+      required: true
+  - type: checkboxes
+    id: sanitation_confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: "I confirm that all logs and evidence are sanitized of QR tokens, credentials, private signing keys, and personal device identifiers (serial numbers, IMEIs, personal accounts)."
+          required: true

@@ -39,6 +39,11 @@ internal fun installedMatches(observed: InstalledApplication?, artifact: Artifac
 
 /** Android effects are reconciled against durable checkpoints; callbacks are hints, not proof. */
 internal class InstallEngine(private val storage: StateAccess, private val platform: InstallPlatform) {
+    /** Reload the latest journal so a failure after session creation also releases that session. */
+    private fun abandonSession(id: String) {
+        val record = storage.read().objectValue("operations").optJSONObject(id) ?: return
+        if (record.has("session")) platform.abandon(record.getInt("session"))
+    }
     /** Reconcile journaled operations against installed state; return whether work remains pending. */
     fun run(): Boolean {
         val operations = storage.read().objectValue("operations")
@@ -51,12 +56,13 @@ internal class InstallEngine(private val storage: StateAccess, private val platf
                 block(state, state.objectValue("operations").getJSONObject(id))
             }
             if (local.optBoolean("superseded")) {
-                if (local.has("session")) platform.abandon(local.getInt("session"))
+                abandonSession(id)
                 continue
             }
             try {
                 if (!platform.isOwner()) throw InstallRejected("DEVICE_OWNER_REQUIRED")
                 if (platform.now() >= op.deadlineUnixMillis) throw InstallRejected("DEADLINE_EXCEEDED")
+                if (platform.now() < op.notBeforeUnixMillis) { pending = true; continue }
                 val observed = platform.installed(op.artifact.packageName)
                 if (installedMatches(observed, op.artifact)) {
                     change { state, record -> record.put("terminal", true); queueReport(state, record, op, OperationState.OPERATION_STATE_SUCCEEDED, observed = observed) }
@@ -94,12 +100,16 @@ internal class InstallEngine(private val storage: StateAccess, private val platf
                     change { _, current -> current.put("stage", "committing") }
                 }
                 // A sealed session already crossed commit; never create a second install.
-                if (!platform.sessionSealed(session)) platform.commit(session, id)
+                if (!platform.sessionSealed(session)) {
+                    if (platform.now() >= op.deadlineUnixMillis) throw InstallRejected("DEADLINE_EXCEEDED")
+                    if (platform.now() < op.notBeforeUnixMillis) { pending = true; continue }
+                    platform.commit(session, id)
+                }
                 change { state, current -> current.put("stage", "committed"); queueReport(state, current, op, OperationState.OPERATION_STATE_RUNNING) }
                 pending = true
             } catch (error: InstallRejected) {
                 change { state, record -> record.put("terminal", true).put("failure", error.reason); queueReport(state, record, op, OperationState.OPERATION_STATE_FAILED, error.reason) }
-                if (local.has("session")) platform.abandon(local.getInt("session"))
+                abandonSession(id)
             } catch (error: IOException) {
                 change { state, record -> queueReport(state, record, op, OperationState.OPERATION_STATE_RUNNING, "TRANSPORT_RETRY", error.javaClass.simpleName) }
                 pending = true

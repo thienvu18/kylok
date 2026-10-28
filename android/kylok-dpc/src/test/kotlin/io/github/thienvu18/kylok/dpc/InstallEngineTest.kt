@@ -29,6 +29,7 @@ class InstallEngineTest {
     private inner class Platform : InstallPlatform {
         var time = 1L; var owner = true; var observed: InstalledApplication? = null
         var exists = false; var sealed = false; var downloads = 0; var creates = 0; var commits = 0
+        var afterWriteTime: Long? = null
         var verificationFailure: String? = null; var downloadFailure = false; var commitCrash = false
         override fun now() = time
         override fun isOwner() = owner
@@ -40,7 +41,7 @@ class InstallEngineTest {
         }
         override fun verify(op: Operation) { verificationFailure?.let { throw InstallRejected(it) } }
         override fun createSession(op: Operation): Int { creates++; exists = true; return 9 }
-        override fun writeSession(id: Int, op: Operation) { assertEquals(9, id) }
+        override fun writeSession(id: Int, op: Operation) { assertEquals(9, id); afterWriteTime?.let { time = it } }
         override fun sessionExists(id: Int) = exists
         override fun sessionSealed(id: Int) = sealed
         override fun commit(id: Int, operationID: String) { commits++; sealed = true; if (commitCrash) throw SimulatedProcessDeath() }
@@ -51,6 +52,26 @@ class InstallEngineTest {
     private fun installed(version: Long = 2, signer: String = "b".repeat(64)) = InstalledApplication.newBuilder()
         .setPackageName(artifact.packageName).setVersionCode(version).addSigningCertificates(signer).build()
 
+    @Test fun windowPreventsEarlyEffectsAcrossRestartAndClockRollback() {
+        val state = state(); val platform = Platform()
+        val scheduled = operation.toBuilder().setNotBeforeUnixMillis(50_000).build()
+        state.update { it.objectValue("operations").getJSONObject(operation.id).put("operation", encode(scheduled)) }
+        assertTrue(InstallEngine(state, platform).run())
+        assertEquals(0, platform.downloads); assertEquals(0, platform.commits)
+        platform.time = 50_000; platform.afterWriteTime = 49_999
+        assertTrue(InstallEngine(state, platform).run())
+        assertEquals(0, platform.commits)
+        platform.time = 50_000; platform.afterWriteTime = null
+        assertTrue(InstallEngine(MemoryState(state.read()), platform).run())
+        assertEquals(1, platform.commits); assertEquals(1, platform.creates)
+    }
+    @Test fun deadlineDuringStagingPreventsCommit() {
+        val state = state(); val platform = Platform().apply { afterWriteTime = 100_000 }
+        assertFalse(InstallEngine(state, platform).run())
+        assertEquals(0, platform.commits)
+        assertEquals("DEADLINE_EXCEEDED", reports(state).last().errorCode)
+        assertFalse(platform.exists)
+    }
     @Test fun commitIsPendingUntilObservedPackageConfirms() {
         val state = state(); val platform = Platform()
         assertTrue(InstallEngine(state, platform).run())

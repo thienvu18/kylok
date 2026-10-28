@@ -17,7 +17,7 @@ For a local source distribution, substitute the absolute distribution path:
 ```sh
 GOWORK=off GOPROXY=file:///absolute/path/to/release/go-proxy,https://proxy.golang.org \
   GONOSUMDB=github.com/thienvu18/kylok/go \
-  go get github.com/thienvu18/kylok/go@v0.2.0-dev
+  go get github.com/thienvu18/kylok/go@v0.3.0-dev
 ```
 
 The checksum-database exception is for unpublished local snapshots; use normal module verification for published versions.
@@ -41,7 +41,7 @@ Defaults are durable SQLite/filesystem. Override `Options.Store` / `Artifacts` w
 
 ## Android host
 
-Public Android packages use Maven Central: configure `mavenCentral()`; the currently available public coordinate is `io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev.40316176224`. Local development coordinates are `io.github.thienvu18.kylok:kylok-dpc:0.2.0-dev`. Point a Maven repository at the extracted `kylok-maven.zip` or `out/release/maven`, then declare:
+Public Android packages use Maven Central: configure `mavenCentral()`; the currently available public coordinate is `io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev.40316176224`. Local development coordinates are `io.github.thienvu18.kylok:kylok-dpc:0.3.0-dev`. Point a Maven repository at the extracted `kylok-maven.zip` or `out/release/maven`, then declare:
 
 ```kotlin
 // In the host's dependency repository configuration:
@@ -51,7 +51,7 @@ repositories {
     maven { url = uri("/absolute/path/to/release/maven") }
 }
 // In the host Android module:
-implementation("io.github.thienvu18.kylok:kylok-dpc:0.2.0-dev")
+implementation("io.github.thienvu18.kylok:kylok-dpc:0.3.0-dev")
 ```
 
 Use min SDK 33, compile/target 37, JDK 17 and a compatible Kotlin 2.2 compiler. Maven metadata supplies transitive dependencies; copying only an AAR omits that information. The AAR contributes provisioning/admin/install/lifecycle components and consumer rules for Room/WorkManager. The host owns application ID, signing, HTTP permission/TLS trust and backup policy; preserve the SDK's data-extraction exclusions. It becomes Device Owner only through Android provisioning.
@@ -65,3 +65,7 @@ Snapshots include the enrolled endpoint, last authenticated sync, desired/observ
 The supported host surface is the Go facade/`ports`/`provisioning` contracts and Android `Kylok`, status/listener models and merged provisioning components. Generated protocol and implementation/storage classes are not general extension points. Custom business authorization/policy validation belongs before Go facade calls; arbitrary privileged Android policy plugins are not provided.
 
 Current source provides [host integration](host-integration.md): scoped point/domain-page reads, opaque enrollment correlation, optional PostgreSQL, readiness and durable change/projection APIs. [Android configuration](managed-configuration.md) documents `HostOptions` and typed managed app restrictions. Custom providers implement management and change/projection contracts; run `portstest.Management` and `portstest.Changes` with the other conformance checks.
+
+## Fleet and one-shot commands
+
+Use [fleet operations](fleet-operations.md) for scoped membership, frozen bulk assignment, absolute deployment windows, cancellation and capability-gated reboot/lock. `ReadProjection` includes groups, fleet batches and device command history; dispatch credentials stay outside host reads. Managed Wi-Fi/private CAs use `SetNetworkPolicy`/`GetNetworkPolicy` and optional host-owned `Options.NetworkSecrets`; see [managed networks](managed-network.md).

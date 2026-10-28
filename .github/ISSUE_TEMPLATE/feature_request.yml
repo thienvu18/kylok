@@ -1,0 +1,51 @@
+name: Feature request / Proposal
+description: Propose a new capability, contract enhancement, or architectural refinement.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting an improvement to Kylok.
+        Kylok is an open-source SDK pair (Go server + Kotlin Android DPC) with strict design boundaries:
+        - SDKs remain independent of consumer application logic or business frameworks.
+        - Authentication, scope isolation, atomic token consumption, and persistence must be preserved.
+        - Desired, observed, and compliance states remain distinct. Checkpoints must precede external side effects.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem & Motivation
+      description: What operational challenge, missing DPC control, or integration constraint are you addressing?
+      placeholder: "A clear description of what problem or missing capability motivates this request."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution & Scope
+      description: |
+        Describe the proposed API contracts, protocol schemas, or behavior.
+        Explain how both Go and Android SDKs or host adapters would be affected.
+      placeholder: "Describe the concrete proposed solution and observable outcome."
+    validations:
+      required: true
+  - type: textarea
+    id: contracts
+    attributes:
+      label: Architectural Guarantees & Constraints
+      description: |
+        How does this proposal address:
+        - Scope isolation and tenant boundaries?
+        - Durable checkpoint ordering and offline/reboot recovery?
+        - Separation of desired vs. observed state?
+        - Idempotency and replay safety?
+      placeholder: "Address durability, ordering, and offline recovery considerations if applicable."
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What other approaches or workarounds have you considered?
+    validations:
+      required: false

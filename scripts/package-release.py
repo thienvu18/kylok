@@ -22,6 +22,13 @@ GROUP_PATH = Path("io/github/thienvu18/kylok/kylok-dpc")
 SEMVER = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?\Z")
 
 
+# Pin reviewed public test certificate bytes; DER files are otherwise excluded from source archives.
+PUBLIC_CERTIFICATES = {
+    "android/kylok-dpc/src/test/resources/network-ca-a.der": "ba4e763eaad69ea341b9497ca03fdeb6295d373c33f8173b197b4309f3806288",
+    "android/kylok-dpc/src/test/resources/network-ca-b.der": "78c0fb4d9b785613c0e3d589efdca3fd6e9547c92ba2e47f831d4d94210f4dbf",
+}
+
+
 def version(sdk):
     """Validate the independently versioned SDK and the currently supported module major."""
     value = (ROOT / sdk / "VERSION").read_text().strip()
@@ -53,7 +60,7 @@ def source_paths():
             dirs[:] = [name for name in dirs if name not in skip]
             names += [(Path(base) / name).relative_to(ROOT) for name in files]
     roots = {".github", "android", "docs", "examples", "go", "proto", "scripts", "tests", "tools", "release", "website"}
-    root_files = {".editorconfig", ".gitattributes", ".gitignore", "AGENTS.md", "CONTRIBUTING.md", "COPYING", "LICENSE", "NOTICE", "README.md", "ROADMAP.md", "Makefile", "design.md", "buf.yaml", "buf.gen.yaml", "go.work"}
+    root_files = {".editorconfig", ".gitattributes", ".gitignore", "AGENTS.md", "CONTRIBUTING.md", "COPYING", "LICENSE", "NOTICE", "README.md", "README.vi.md", "CODE_OF_CONDUCT.md", "SECURITY.md", "ROADMAP.md", "Makefile", "design.md", "buf.yaml", "buf.gen.yaml", "go.work"}
     suffixes = {".go", ".md", ".kt", ".kts", ".java", ".xml", ".proto", ".mod", ".sum", ".py", ".sh", ".json", ".yml", ".yaml", ".pro", ".bat", ".lockfile", ".html", ".css", ".js"}
     allowed_names = {"LICENSE", "COPYING", "NOTICE", "VERSION", "gradlew", "gradle.properties", "gradle-wrapper.properties", "gradle-wrapper.jar", "apk-metadata", "requirements.txt", "signing-public-key.asc"}
     result = []
@@ -63,13 +70,16 @@ def source_paths():
         if len(p.parts) == 1:
             allowed = p.name in root_files
         else:
-            allowed = p.parts[0] in roots and (p.suffix in suffixes or p.name in allowed_names)
+            allowed = p.parts[0] in roots and (p.suffix in suffixes or p.name in allowed_names or p.as_posix() in PUBLIC_CERTIFICATES)
         if not allowed:
             continue
         actual = ROOT / p
         if actual.is_symlink():
             raise ValueError(f"Source archive refuses symlink: {p}")
         if actual.is_file():
+            if p.as_posix() in PUBLIC_CERTIFICATES:
+                if actual.stat().st_size > 16 * 1024 or hashlib.sha256(actual.read_bytes()).hexdigest() != PUBLIC_CERTIFICATES[p.as_posix()]:
+                    raise ValueError(f"Public test certificate differs from its reviewed checksum: {p}")
             result.append(p)
     return result
 

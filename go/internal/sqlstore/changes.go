@@ -120,6 +120,10 @@ func readDeviceState(ctx context.Context, tx *transaction, scope, id string) (po
 	if err != nil {
 		return result, err
 	}
+	result.Network, err = networkStatus(ctx, tx, device, nil)
+	if err != nil {
+		return result, err
+	}
 	result.Device = device
 	if result.Desired, err = desiredApplications(ctx, tx, device); err != nil {
 		return result, err
@@ -142,6 +146,25 @@ func readDeviceState(ctx context.Context, tx *transaction, scope, id string) (po
 			return ports.DeviceState{}, err
 		}
 		result.Operations = append(result.Operations, op)
+	}
+	if err = errors.Join(rows.Err(), rows.Close()); err != nil {
+		return result, err
+	}
+	rows, err = tx.QueryContext(ctx, "SELECT data FROM commands WHERE device_id=? ORDER BY id", id)
+	if err != nil {
+		return result, err
+	}
+	for rows.Next() {
+		var data []byte
+		var command ports.Command
+		if err = rows.Scan(&data); err == nil {
+			err = json.Unmarshal(data, &command)
+		}
+		if err != nil {
+			rows.Close()
+			return result, err
+		}
+		result.Commands = append(result.Commands, command)
 	}
 	return result, errors.Join(rows.Err(), rows.Close())
 }
@@ -270,6 +293,46 @@ func createScan(ctx context.Context, tx *transaction, scope string, now time.Tim
 			return "", err
 		}
 		index++
+	}
+	// Freeze group and fleet resources under the same watermark as devices/catalog metadata.
+	for _, query := range []string{
+		"SELECT data FROM fleet_groups WHERE scope_id=? ORDER BY id",
+		"SELECT data FROM fleet_assignments WHERE scope_id=? ORDER BY id",
+	} {
+		rows, err := tx.QueryContext(ctx, query, scope)
+		if err != nil {
+			return "", err
+		}
+		var items []ports.ProjectionItem
+		for rows.Next() {
+			var data []byte
+			item := ports.ProjectionItem{}
+			if err = rows.Scan(&data); err != nil {
+				rows.Close()
+				return "", err
+			}
+			if query == "SELECT data FROM fleet_groups WHERE scope_id=? ORDER BY id" {
+				item.Group = &ports.Group{}
+				err = json.Unmarshal(data, item.Group)
+			} else {
+				item.Fleet = &ports.FleetAssignment{}
+				err = json.Unmarshal(data, item.Fleet)
+			}
+			if err != nil {
+				rows.Close()
+				return "", err
+			}
+			items = append(items, item)
+		}
+		if err = errors.Join(rows.Err(), rows.Close()); err != nil {
+			return "", err
+		}
+		for _, item := range items {
+			if err = saveProjection(ctx, tx, id, index, item); err != nil {
+				return "", err
+			}
+			index++
+		}
 	}
 	return id, nil
 }

@@ -55,6 +55,8 @@ type Options struct {
 	BootstrapURL string
 	// Optional sanitized best-effort committed-event sink; see EventSink for cancellation/delivery rules.
 	Events EventSink
+	// Optional host-owned resolver for immutable scoped Wi-Fi passphrase versions. Required for protected profiles.
+	NetworkSecrets ports.NetworkSecretProvider
 	// Per callback; defaults to one second, at most 30 seconds. A non-cooperative
 	// host callback can stall only its one worker, never authentication or sync.
 	EventTimeout time.Duration
@@ -63,18 +65,19 @@ type Options struct {
 // SDK owns the management facade and agent handlers. Hosts own authorization and
 // listeners, drain requests before Close, and close their own supplied providers.
 type SDK struct {
-	store         ports.StateStore
-	artifacts     ports.ArtifactStore
-	bootstrap     *provisioning.APK
-	origin        string
-	bootstrapURL  string
-	clock         func() time.Time
-	closeStore    func() error
-	closed        atomic.Bool
-	closeOnce     sync.Once
-	closeErr      error
-	allowDebugAPK bool
-	events        *eventDispatcher
+	store          ports.StateStore
+	artifacts      ports.ArtifactStore
+	networkSecrets ports.NetworkSecretProvider
+	bootstrap      *provisioning.APK
+	origin         string
+	bootstrapURL   string
+	clock          func() time.Time
+	closeStore     func() error
+	closed         atomic.Bool
+	closeOnce      sync.Once
+	closeErr       error
+	allowDebugAPK  bool
+	events         *eventDispatcher
 }
 type Enrollment struct {
 	CorrelationID string
@@ -99,7 +102,7 @@ func New(ctx context.Context, o Options) (_ *SDK, err error) {
 	if o.EventTimeout < time.Millisecond || o.EventTimeout > 30*time.Second {
 		return nil, errors.New("EventTimeout must be 1ms–30s")
 	}
-	for _, provider := range []any{o.Store, o.Artifacts} {
+	for _, provider := range []any{o.Store, o.Artifacts, o.NetworkSecrets} {
 		if provider != nil && reflect.ValueOf(provider).Kind() == reflect.Ptr && reflect.ValueOf(provider).IsNil() {
 			return nil, errors.New("typed nil persistence provider")
 		}
@@ -129,7 +132,7 @@ func New(ctx context.Context, o Options) (_ *SDK, err error) {
 			return nil, fmt.Errorf("create DataDir: %w", err)
 		}
 	}
-	s := &SDK{origin: origin, bootstrapURL: bootstrapURL, bootstrap: o.Bootstrap, store: o.Store, artifacts: o.Artifacts, clock: o.Clock, allowDebugAPK: o.AllowDebugAPK}
+	s := &SDK{origin: origin, bootstrapURL: bootstrapURL, bootstrap: o.Bootstrap, store: o.Store, artifacts: o.Artifacts, clock: o.Clock, allowDebugAPK: o.AllowDebugAPK, networkSecrets: o.NetworkSecrets}
 	defer func() {
 		if err != nil {
 			s.Close()
@@ -308,6 +311,7 @@ func (s *SDK) Handler() http.Handler {
 	mux.Handle(path, handler)
 	mux.Handle("/bootstrap/", s.bootstrapHandler())
 	mux.Handle("/artifacts/", s.applicationHandler())
+	mux.HandleFunc("/network-probe", s.networkProbe)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.closed.Load() {
 			http.Error(w, "SDK closed", http.StatusServiceUnavailable)

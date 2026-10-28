@@ -6,7 +6,7 @@ For structural codebase exploration, use the installed `codebase-memory` skill.
 
 ## Scope and current state
 
-Kylok is an experimental Go/Android device management SDK. Current source includes device enrollment and management, host contracts, PostgreSQL, durable changes and Android configuration. `ROADMAP.md` and `docs/implementation-plan.md` track planned work and qualification; `docs/compatibility.md` records current software/device evidence; `docs/release-readiness.md` gates stable release qualification. Keep claims limited to recorded evidence. Do not expand feature scope without a task.
+Kylok is an experimental Go/Android device management SDK. Current source includes device enrollment and management, host contracts, PostgreSQL, durable changes, Android configuration, fleet operations, one-shot commands and managed Wi-Fi/private CAs. `ROADMAP.md` and `docs/implementation-plan.md` track planned work and qualification; `docs/compatibility.md` records current software/device evidence; `docs/release-readiness.md` gates stable release qualification. Keep claims limited to recorded evidence. Do not expand feature scope without a task.
 
 Development APIs, schemas and local formats may evolve while the project is in development. Build paired SDKs from the same source revision and use fresh development data when a local format changes. Preserve `design.md`; current decisions live in `docs/architecture.md` and `docs/enrollment-protocol.md`.
 
@@ -20,6 +20,7 @@ Development APIs, schemas and local formats may evolve while the project is in d
 - Keep desired, observed and compliance state distinct. Persist checkpoints before external effects; report success only after observation.
 - Journal original policy settings before effects; restore only managed settings. Kiosk requires verified app prerequisites and observed managed locking.
 - Default persistence is durable; no temporary fallback. Custom providers remain host-owned.
+- Managed networks require a verified independent recovery route, immutable scoped secret versions and a probe bound to the selected network/remaining TLS trust before cleanup. Preserve unmanaged networks/CAs; never replay an ambiguous reboot/lock.
 - Optional event/status observers are read-only and best-effort; their failures cannot change authentication or committed operations.
 
 ## Work and verification

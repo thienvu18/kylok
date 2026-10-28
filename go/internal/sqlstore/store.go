@@ -70,6 +70,12 @@ func (s *Store) migrate(ctx context.Context, initialize bool) error {
 			return errors.New("schema initialization requires explicit opt-in")
 		}
 		schemaSQL := `
+CREATE TABLE network_policies(device_id TEXT PRIMARY KEY,data BLOB NOT NULL,reported BLOB);
+CREATE TABLE network_requests(device_id TEXT NOT NULL,idempotency_key TEXT NOT NULL,body BLOB NOT NULL,response BLOB NOT NULL,PRIMARY KEY(device_id,idempotency_key));
+CREATE TABLE commands(id TEXT PRIMARY KEY,ordinal INTEGER NOT NULL UNIQUE,device_id TEXT NOT NULL,idempotency_key TEXT NOT NULL,state TEXT NOT NULL,data BLOB NOT NULL,report BLOB,UNIQUE(device_id,idempotency_key));
+CREATE INDEX commands_device ON commands(device_id,state,ordinal);
+CREATE TABLE fleet_groups(scope_id TEXT NOT NULL,id TEXT NOT NULL,data BLOB NOT NULL,PRIMARY KEY(scope_id,id));
+CREATE TABLE fleet_assignments(scope_id TEXT NOT NULL,id TEXT NOT NULL,artifact_sha256 TEXT NOT NULL,pending INTEGER NOT NULL,data BLOB NOT NULL,PRIMARY KEY(scope_id,id));
 CREATE TABLE enrollments(token_hash BLOB PRIMARY KEY,scope_id TEXT NOT NULL,expires_at INTEGER NOT NULL,artifact_sha256 TEXT NOT NULL,correlation_id TEXT NOT NULL DEFAULT '',attempt_id TEXT,key_hash BLOB,device_id TEXT,receipt BLOB,recover_until INTEGER);
 CREATE UNIQUE INDEX enrollments_correlation ON enrollments(scope_id,correlation_id) WHERE correlation_id<>'';
 CREATE TABLE devices(id TEXT PRIMARY KEY,scope_id TEXT NOT NULL,state TEXT NOT NULL,correlation_id TEXT NOT NULL DEFAULT '',inventory BLOB NOT NULL,credential_hash BLOB NOT NULL,created_at INTEGER NOT NULL,last_seen_at INTEGER NOT NULL,desired_revision INTEGER NOT NULL DEFAULT 0,reported_revision INTEGER NOT NULL DEFAULT 0,sync_sequence INTEGER NOT NULL DEFAULT 0,sync_hash BLOB,sync_snapshot BLOB);
@@ -101,6 +107,11 @@ PRAGMA user_version=1;`
 	// Resolve every required column before returning a ready store, without
 	// scanning device data or attempting to repair an existing damaged database.
 	for _, query := range []string{
+		"SELECT device_id,data,reported FROM network_policies LIMIT 0",
+		"SELECT device_id,idempotency_key,body,response FROM network_requests LIMIT 0",
+		"SELECT id,ordinal,device_id,idempotency_key,state,data,report FROM commands LIMIT 0",
+		"SELECT scope_id,id,data FROM fleet_groups LIMIT 0",
+		"SELECT scope_id,id,artifact_sha256,pending,data FROM fleet_assignments LIMIT 0",
 		"SELECT token_hash,scope_id,expires_at,artifact_sha256,correlation_id,attempt_id,key_hash,device_id,receipt,recover_until FROM enrollments LIMIT 0",
 		"SELECT " + deviceColumns + " FROM devices LIMIT 0",
 		"SELECT sync_sequence,sync_hash,sync_snapshot FROM devices LIMIT 0",

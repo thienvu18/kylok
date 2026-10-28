@@ -1,6 +1,6 @@
 # Contributing to Kylok
 
-Read the [architecture](docs/architecture.md), [roadmap](ROADMAP.md), and [development guide](docs/development.md). Kylok is in active development; use the current source contracts and fresh development data when schemas change.
+Read the [architecture](docs/architecture.md), [roadmap](ROADMAP.md), and [development guide](docs/development.md). Please review our [Code of Conduct](CODE_OF_CONDUCT.md) before participating, and report vulnerabilities privately through our [Security Policy](SECURITY.md). Kylok is in active development; use the current source contracts and fresh development data when schemas change.
 
 Use `dev` for the current development integration branch and open a PR into `main` to run the required checks.
 

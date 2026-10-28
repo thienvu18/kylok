@@ -18,4 +18,6 @@ This checklist gates **stable v1 and later** publication in `scripts/validate-re
 - [ ] **Compatibility:** supported candidate device/firmware and server/agent pairing matrix is complete.
 - [x] **Public packages:** Go/AAR packages are available through the [Go module proxy](https://proxy.golang.org/github.com/thienvu18/kylok/go), [Maven Central](https://central.sonatype.com/artifact/io.github.thienvu18.kylok/kylok-dpc) and [GitHub Releases](https://github.com/thienvu18/kylok/releases); the [documentation site](https://thienvu18.github.io/kylok/) is available.
 
+Scheduled APK windows, reboot/secure-lock observation and managed Wi-Fi/CA lifecycle also require exact candidate/device evidence; their automated models do not close physical gates.
+
 Before stable publication, review all thirteen items against the exact candidate and supported device window. The release validator requires thirteen checked entries with evidence links. Hardware outcomes remain maintainer-owned; see [testing](testing.md) and [physical checks](provisioning.md).

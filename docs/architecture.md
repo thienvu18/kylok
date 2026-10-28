@@ -1,6 +1,6 @@
 # Architecture
 
-Kylok consists of an embeddable Go management engine and an Android DPC AAR. This document describes current system boundaries. The [implementation plan](implementation-plan.md) tracks current N1–N4 contracts and planned N5–N7 work. Go and Android SDKs are built from the same source revision.
+Kylok consists of an embeddable Go management engine and an Android DPC AAR. This document describes current system boundaries. The [implementation plan](implementation-plan.md) tracks current contracts and remaining device/stable qualification. Go and Android SDKs are built from the same source revision.
 
 ```mermaid
 flowchart LR
@@ -18,7 +18,7 @@ flowchart LR
 
 | Path | Responsibility |
 | --- | --- |
-| `proto/kylok/v1/` | Typed enrollment, inventory, desired apps/policies, operations, reports and errors. |
+| `proto/kylok/v1/` | Typed enrollment, inventory, desired apps/policies/networks, operations, commands, reports and errors. |
 | `go/` | Public management APIs, agent handlers, persistence, artifact verification and optional committed-event notifications. |
 | `android/kylok-dpc/` | Provisioning, durable sync, installation, policies/kiosk, recovery and read-only host status APIs. |
 | `examples/minimal-server/` | Agent/APK listeners, TLS, local CLI and optional separately authenticated administrator console. |
@@ -54,6 +54,6 @@ See [policies](policies.md), [protocol](enrollment-protocol.md) and [manual chec
 
 The current facade uses explicit scopes and host authorization. Hosts can keep a mapping from scoped Kylok device IDs to their own external records and wrap SDK calls behind consumer-owned ports. Business identity, assets, authorization and workflows remain outside the SDK. An agent credential never authorizes administrative operations.
 
-Current source includes scoped point reads/domain pages and enrollment correlation, optional PostgreSQL with shared SQL transaction semantics, transaction-bound replayable changes and persisted consistent projection scans. Android provides validated immutable scheduling options and typed managed app configuration with protected baseline/attempt journals. `EventSink` remains a separate best-effort wakeup; loss does not affect the durable feed. No generic privileged policy plugin, group scheduler or remote reboot/lock API is available. See [host contracts](host-integration.md) and [Android configuration](managed-configuration.md).
+Current source includes scoped point reads/domain pages and enrollment correlation, optional PostgreSQL with shared SQL transaction semantics, transaction-bound replayable changes and persisted consistent projection scans. Android provides validated immutable scheduling options and typed managed app configuration with protected baseline/attempt journals. `EventSink` remains a separate best-effort wakeup; loss does not affect the durable feed. Scoped groups and frozen fleet batches use bounded transactional fan-out; absolute installation windows survive restart. One-shot reboot/secure lock uses stable delivery tokens and explicit uncertainty. Managed Wi-Fi/private CAs use host-owned immutable secret references, a network-bound authenticated probe and an independent recovery journal. See [fleet operations](fleet-operations.md) and [managed networks](managed-network.md). See [host contracts](host-integration.md) and [Android configuration](managed-configuration.md).
 
-Do not assume a business transaction and SDK state update commit together. A host persists an intent, invokes Kylok with a stable request key where supported, and reconciles authoritative reads. Future feed/outbox contracts must preserve that recovery boundary and explicitly define retention and resnapshot behavior. See [implementation plan](implementation-plan.md#neutral-integration-boundary).
+Do not assume a business transaction and SDK state update commit together. A host persists an intent, invokes Kylok with a stable request key where supported, and reconciles authoritative reads. The durable feed/projection contracts define retention, replay and resnapshot at that boundary. See [implementation plan](implementation-plan.md#neutral-integration-boundary).

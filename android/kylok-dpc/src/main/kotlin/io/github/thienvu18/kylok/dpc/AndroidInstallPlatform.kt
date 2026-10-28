@@ -44,7 +44,7 @@ internal class AndroidInstallPlatform(private val context: Context, private val 
         val available = manager.getAllocatableBytes(manager.getUuidForPath(staging))
         // Reserve remaining download bytes, a full installer copy, and 8 MiB for session/metadata overhead.
         if (available < maxOf(0L, op.artifact.sizeBytes - file(op).length()) + op.artifact.sizeBytes + 8 * 1024 * 1024) throw InstallRejected("INSUFFICIENT_STORAGE")
-        ArtifactDownload.fetch(state.getString("server"), state.getString("credential"), state.getString("device_id"), op, file(op), progress)
+        ArtifactDownload.fetch(state.getString("server"), state.getString("credential"), state.getString("device_id"), op, file(op), connectionFactory = { AndroidNetworkPlatform(context, storage).openConnection(it) }, progress = progress)
     }
 
     /** Recheck staged content, platform requirements, metadata and permitted signing lineage. */
@@ -54,7 +54,7 @@ internal class AndroidInstallPlatform(private val context: Context, private val 
         if (apk.supportedAbisCount > 0 && apk.supportedAbisList.none { it in Build.SUPPORTED_ABIS }) throw InstallRejected("INCOMPATIBLE_ABI")
         // Recheck immutable bytes even when recovering a previously staged session.
         ArtifactDownload.fetch(storage.read().getString("server"), storage.read().getString("credential"),
-            storage.read().getString("device_id"), op, file(op)) { }
+            storage.read().getString("device_id"), op, file(op), connectionFactory = { AndroidNetworkPlatform(context, storage).openConnection(it) }) { }
         val info = pm.getPackageArchiveInfo(file(op).path, PackageManager.PackageInfoFlags.of(
             (PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_CONFIGURATIONS).toLong())) ?: throw InstallRejected("APK_PARSE_FAILED")
         if (info.packageName != apk.packageName || info.longVersionCode != apk.versionCode || certificates(info) != apk.signingCertificatesList.sorted()) throw InstallRejected("APK_METADATA_MISMATCH")

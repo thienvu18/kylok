@@ -132,6 +132,41 @@ func TestFreshHostPublicAPIsAndCustomProviderOwnership(t *testing.T) {
 			if err != nil || status.Desired.Revision != 2 {
 				t.Fatal(status, err)
 			}
+			group, err := sdk.ReplaceGroup(ctx, "consumer", "consumer-group", []string{record.ID}, 0)
+			if err != nil || group.Revision != 1 {
+				t.Fatal(group, err)
+			}
+			now := time.Now().UTC().Truncate(time.Millisecond)
+			batch, err := sdk.CreateFleetAssignment(ctx, kylok.FleetRequest{ScopeID: "consumer", ID: "consumer-batch", GroupID: group.ID, ArtifactSHA256: a.SHA256, NotBefore: now, Deadline: now.Add(time.Hour)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			batch, err = sdk.AdvanceFleetAssignment(ctx, "consumer", batch.Request.ID, 20)
+			if err != nil || !batch.Complete || batch.Items[0].State != "ASSIGNED" {
+				t.Fatal(batch, err)
+			}
+			if batch, err = sdk.CancelFleetAssignment(ctx, "consumer", batch.Request.ID); err != nil || !batch.Cancelled {
+				t.Fatal(batch, err)
+			}
+			scheduled, err := sdk.ScheduleApplication(ctx, "consumer", record.ID, a.SHA256, "consumer-window", now.Add(time.Hour), now.Add(2*time.Hour))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cancelled, err := sdk.CancelOperation(ctx, "consumer", record.ID, scheduled.ID); err != nil || cancelled.State != "CANCELLED" {
+				t.Fatal(cancelled, err)
+			}
+			if _, err = sdk.SetNetworkPolicy(ctx, "consumer", record.ID, "consumer-network", kylok.NetworkPolicy{PrimaryID: "office", Profiles: []kylok.WifiProfile{{ID: "office", SSID: "Office", Security: "OPEN"}}}); err != nil {
+				t.Fatal(err)
+			}
+			if network, err := sdk.GetNetworkPolicy(ctx, "consumer", record.ID); err != nil || network.Desired.Policy.PrimaryID != "office" || network.State != "UNSUPPORTED" {
+				t.Fatal(network, err)
+			}
+			if _, err = sdk.SubmitCommand(ctx, "consumer", record.ID, kylok.CommandReboot, "unsupported-command", time.Hour); !errors.Is(err, kylok.ErrUnsupported) {
+				t.Fatal("missing capability accepted", err)
+			}
+			if commands, err := sdk.QueryCommands(ctx, "consumer", record.ID, kylok.PageRequest{}); err != nil || len(commands.Items) != 0 {
+				t.Fatal(commands, err)
+			}
 			select {
 			case e := <-events:
 				if e.Kind != "device_enrolled" || e.DeviceID != devices[0].ID {
@@ -141,7 +176,7 @@ func TestFreshHostPublicAPIsAndCustomProviderOwnership(t *testing.T) {
 				t.Fatal("event hook did not receive committed identity")
 			}
 			projection, err := sdk.ReadProjection(ctx, "consumer", "", 100)
-			if err != nil || len(projection.Items) != 2 || projection.NextCursor != "" {
+			if err != nil || len(projection.Items) != 4 || projection.NextCursor != "" {
 				t.Fatal(projection, err)
 			}
 			if _, err = sdk.ListChanges(ctx, "foreign", projection.ChangesCursor, 100); !errors.Is(err, kylok.ErrInvalidArgument) {
@@ -184,4 +219,7 @@ func TestCustomAdapterConformanceFromModule(t *testing.T) {
 	portstest.ManagedConfigurations(t, factory)
 	portstest.Management(t, factory)
 	portstest.Changes(t, factory)
+	portstest.Fleet(t, factory)
+	portstest.Commands(t, factory)
+	portstest.Network(t, factory)
 }

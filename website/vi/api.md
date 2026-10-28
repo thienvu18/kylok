@@ -31,3 +31,7 @@ Bắt đầu từ [hướng dẫn tích hợp](install.html) nếu bạn đang �
 `AgentStatus` cho biết ứng dụng đang yêu cầu phiên bản nào và thiết bị đã cài phiên bản nào, kết quả từng quy tắc chính sách cùng tiến độ cài đặt còn dang dở. Trạng thái này không chứa token đăng ký, thông tin xác thực hay khóa riêng.
 
 Mã nguồn hiện tại bổ sung API đọc/liên kết theo phạm vi, PostgreSQL, luồng thay đổi bền vững và `HostOptions`/cấu hình ứng dụng theo kiểu. Xem [tích hợp host](https://github.com/thienvu18/kylok/blob/main/docs/host-integration.md) và [cấu hình Android](https://github.com/thienvu18/kylok/blob/main/docs/managed-configuration.md); tham chiếu sinh tự động phản ánh mã nguồn hiện tại, mới hơn cặp SDK đầu tiên.
+
+API fleet có `ReplaceGroup`, `CreateFleetAssignment`, `AdvanceFleetAssignment`, `ScheduleApplication`, hủy và phân trang theo scope. Lệnh một lần dùng `SubmitCommand`, `GetCommand`, `QueryCommands`, `CancelCommand`. `AgentStatus.commands` cho biết tiến trình cục bộ, không lộ dispatch token. Xem [hợp đồng fleet](https://github.com/thienvu18/kylok/blob/main/docs/fleet-operations.md).
+
+Quản lý kết nối dùng `SetNetworkPolicy`, `GetNetworkPolicy` và `Options.NetworkSecrets` do host quản lý. Android `AgentStatus.network` chứa trạng thái quan sát đã lọc thông tin nhạy cảm. Xem [hợp đồng mạng](https://github.com/thienvu18/kylok/blob/main/docs/managed-network.md).

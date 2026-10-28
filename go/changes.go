@@ -16,6 +16,7 @@ var ErrCursorExpired = ports.ErrCursorExpired
 
 // Change is a durable scoped invalidation or application tombstone, without tokens or raw state.
 // Refresh device_changed through GetDeviceState; application_changed through GetApplication.
+// group_changed/fleet_changed require GetGroup/GetFleetAssignment.
 // application_removed deletes that digest from the host projection. Sequence is strictly ascending per scope.
 type Change struct {
 	Sequence   uint64
@@ -40,16 +41,20 @@ type DesiredApplication struct {
 // DeviceState is a consistent scoped projection, including complete operation history and desired/observed policy.
 // Reading does not expire operations or trigger effects; deadline-aware reads use GetOperation/QueryOperations.
 type DeviceState struct {
+	Network    NetworkStatus        `json:"network"`
 	Device     Device               `json:"device"`
 	Desired    []DesiredApplication `json:"desired"`
 	Operations []Operation          `json:"operations"`
+	Commands   []Command            `json:"commands"`
 	Policy     PolicyStatus         `json:"policy"`
 }
 
 // ProjectionItem is one snapshot resource: exactly one pointer is populated.
 type ProjectionItem struct {
-	Device      *DeviceState `json:"device,omitempty"`
-	Application *Artifact    `json:"application,omitempty"`
+	Device      *DeviceState     `json:"device,omitempty"`
+	Application *Artifact        `json:"application,omitempty"`
+	Group       *Group           `json:"group,omitempty"`
+	Fleet       *FleetAssignment `json:"fleet,omitempty"`
 }
 
 // ProjectionPage contains immutable scoped records. Build a staged projection across all pages,
@@ -195,6 +200,12 @@ func (s *SDK) ReadProjection(ctx context.Context, scope, cursor string, limit in
 			artifact := publicArtifact(*item.Application)
 			value.Application = &artifact
 		}
+		if item.Group != nil {
+			value.Group = item.Group
+		}
+		if item.Fleet != nil {
+			value.Fleet = item.Fleet
+		}
 		result.Items = append(result.Items, value)
 	}
 	if page.More {
@@ -205,7 +216,10 @@ func (s *SDK) ReadProjection(ctx context.Context, scope, cursor string, limit in
 
 // Project detached aggregate values, stripping installer authorization/checkpoints from operation records.
 func publicDeviceState(value ports.DeviceState) DeviceState {
-	result := DeviceState{Device: publicDevice(value.Device), Operations: publicOperations(value.Operations), Policy: value.Policy, Desired: []DesiredApplication{}}
+	result := DeviceState{Network: value.Network, Device: publicDevice(value.Device), Operations: publicOperations(value.Operations), Policy: value.Policy, Desired: []DesiredApplication{}}
+	for _, command := range value.Commands {
+		result.Commands = append(result.Commands, publicCommand(command))
+	}
 	for _, desired := range value.Desired {
 		result.Desired = append(result.Desired, DesiredApplication{Artifact: publicArtifact(desired.Artifact), Revision: desired.Revision})
 	}

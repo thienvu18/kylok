@@ -15,7 +15,7 @@ class MainActivity : Activity() {
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         val view = TextView(this)
-        fun show(status: AgentStatus) { view.text = getString(R.string.status, Kylok.sdkVersion, status.lifecycle) }
+        fun show(status: AgentStatus) { view.text = getString(R.string.status, Kylok.sdkVersion, status.lifecycle) + "\nCommands: ${status.commands.size}\nNetwork: ${status.network?.state ?: "UNMANAGED"}" }
         subscription = Kylok.observe(StatusListener(::show))
         Kylok.snapshot(this, ::show)
         setContentView(view)
