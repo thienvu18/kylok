@@ -42,7 +42,19 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
-        <receiver android:name=".LifecycleReceiver" android:exported="false">
+        <activity android:name=".KylokHomeActivity" android:exported="true"
+            android:launchMode="singleInstance"
+            android:excludeFromRecents="true"
+            android:stateNotNeeded="true"
+            android:enabled="false"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <receiver android:name=".LifecycleReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />

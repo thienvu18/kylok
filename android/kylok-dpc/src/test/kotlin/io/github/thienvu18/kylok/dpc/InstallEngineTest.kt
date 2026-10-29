@@ -165,4 +165,42 @@ class InstallEngineTest {
         val before = platform.downloads
         InstallEngine(state, platform).run(); assertEquals(before, platform.downloads)
     }
+
+    @Test
+    fun testSecurityAndIllegalArgumentAndLostCreatedSession() {
+        // Not owner -> run returns false immediately
+        val notOwnerPlatform = Platform().apply { owner = false }
+        val s0 = state()
+        assertFalse(InstallEngine(s0, notOwnerPlatform).run())
+
+        // SecurityException
+        val s1 = state()
+        val secPlatform = object : InstallPlatform by Platform() {
+            override fun download(op: Operation, progress: (Long) -> Unit) { throw SecurityException("denied") }
+        }
+        assertFalse(InstallEngine(s1, secPlatform).run())
+        assertEquals(OperationState.OPERATION_STATE_FAILED, reports(s1).last().state)
+        assertEquals("PLATFORM_PERMISSION_DENIED", reports(s1).last().errorCode)
+
+        // IllegalArgumentException
+        val s2 = state()
+        val argPlatform = object : InstallPlatform by Platform() {
+            override fun download(op: Operation, progress: (Long) -> Unit) { throw IllegalArgumentException("invalid") }
+        }
+        assertFalse(InstallEngine(s2, argPlatform).run())
+        assertEquals(OperationState.OPERATION_STATE_FAILED, reports(s2).last().state)
+        assertEquals("INVALID_ARTIFACT", reports(s2).last().errorCode)
+
+        // Session lost in stage "created" resets session to -1 and re-creates
+        val s3 = state()
+        s3.update { root ->
+            root.objectValue("operations").getJSONObject(operation.id).apply {
+                put("session", 99).put("stage", "created")
+            }
+        }
+        val reCreatePlatform = Platform()
+        assertTrue(InstallEngine(s3, reCreatePlatform).run())
+        assertEquals(1, reCreatePlatform.creates)
+        assertEquals(9, s3.read().objectValue("operations").getJSONObject(operation.id).getInt("session"))
+    }
 }

@@ -1,10 +1,10 @@
 # Physical verification checklist
 
-Follow the ordered [physical test runbook](physical-device-tests.md) and copy its [result template](validation/physical-device-template.md) for each device/firmware/transport run.
+Use the ordered [physical test runbook](physical-device-tests.md) and its [result template](validation/physical-device-template.md) for each device/firmware/transport configuration. [Compatibility](compatibility.md) is the index of device-specific evidence.
 
-Use the [local server guide](local-server.md) for build/start/QR commands. Physical tests are performed by the maintainer. The [POCO device report](validation/2026-10-27-poco-pad-x1.md) records enrollment, app/configuration behavior, background/LAN/server/reboot recovery and selected policy results. WAN was available, and uninstall prevention failed.
+Use the [local server guide](local-server.md) for build/start/QR commands. Physical checks are performed on resettable lab devices; keep evidence tied to the exact build, firmware and network conditions.
 
-The [independent package consumers](sdk.md) prove Go-host execution and Android build/metadata integration only. For device tests, record the Go/Android SDK pair/source revision in addition to the host APK identity. Package versions and a successful minified build are not OS enforcement evidence.
+The [independent package consumers](sdk.md) prove Go-host execution and Android build/metadata integration only. For each device run, record the Go/Android SDK pair/source revision alongside the host APK identity. Package versions and a successful minified build are not OS enforcement evidence.
 
 ## Provisioning
 
@@ -45,4 +45,4 @@ Record exact build/artifact/network conditions and results in [compatibility](co
 
 ## Independent managed app configuration
 
-Follow [the configuration app procedure](managed-configuration.md#independent-app-fixture-and-manual-check). Record actual title/refresh-button behavior after assignment, update, process restart and policy release, independently of the DPC readback digest. The POCO report contains these observations for its source build; run the checks for each device/firmware you intend to support.
+Follow [the configuration app procedure](managed-configuration.md#independent-app-fixture-and-manual-check). Record actual title/refresh-button behavior after assignment, update, process restart and policy release, independently of the DPC readback digest. Repeat these checks for every device/firmware you intend to support.

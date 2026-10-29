@@ -192,3 +192,150 @@ func TestCommandPublicAPIAndSanitizedProjection(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestFleetAndGroupOperations(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	s, _ := setup(t, func() time.Time { return now })
+	client, _ := start(t, s)
+	devID, _ := enrolled(t, s, client, "scope")
+	artifact, err := s.RegisterApplication(ctx, "scope", testapk.Make(t, testapk.Manifest))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Replace and GetGroup
+	group, err := s.ReplaceGroup(ctx, "scope", "engineers", []string{devID}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotGroup, err := s.GetGroup(ctx, "scope", "engineers")
+	if err != nil || gotGroup.ID != group.ID || gotGroup.Revision != group.Revision {
+		t.Fatalf("unexpected group: %+v, err: %v", gotGroup, err)
+	}
+
+	// GetGroup validation & not found
+	if _, err := s.GetGroup(ctx, "invalid scope!", "engineers"); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument for invalid scope")
+	}
+	if _, err := s.GetGroup(ctx, "scope", "invalid group!"); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument for invalid group ID")
+	}
+	if _, err := s.GetGroup(ctx, "other", "engineers"); !errors.Is(err, kylok.ErrNotFound) {
+		t.Fatal("expected ErrNotFound for wrong scope")
+	}
+
+	// Create, Get and Cancel FleetAssignment
+	req := kylok.FleetRequest{
+		ScopeID:        "scope",
+		ID:             "batch-test",
+		GroupID:        "engineers",
+		ArtifactSHA256: artifact.SHA256,
+		NotBefore:      now,
+		Deadline:       now.Add(time.Hour),
+	}
+	batch, err := s.CreateFleetAssignment(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gotBatch, err := s.GetFleetAssignment(ctx, "scope", "batch-test")
+	if err != nil || gotBatch.Request.ID != batch.Request.ID {
+		t.Fatalf("unexpected batch: %+v, err: %v", gotBatch, err)
+	}
+
+	// GetFleetAssignment validation & not found
+	if _, err := s.GetFleetAssignment(ctx, "invalid scope!", "batch-test"); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument for invalid scope")
+	}
+	if _, err := s.GetFleetAssignment(ctx, "scope", "invalid batch!"); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument for invalid batch ID")
+	}
+	if _, err := s.GetFleetAssignment(ctx, "other", "batch-test"); !errors.Is(err, kylok.ErrNotFound) {
+		t.Fatal("expected ErrNotFound for wrong scope")
+	}
+
+	// Advance with invalid limit
+	if _, err := s.AdvanceFleetAssignment(ctx, "scope", "batch-test", 0); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument for limit 0")
+	}
+	if _, err := s.AdvanceFleetAssignment(ctx, "scope", "batch-test", 101); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument for limit > 100")
+	}
+
+	// CancelFleetAssignment
+	cancelledBatch, err := s.CancelFleetAssignment(ctx, "scope", "batch-test")
+	if err != nil || !cancelledBatch.Cancelled {
+		t.Fatalf("unexpected cancel result: %+v, err: %v", cancelledBatch, err)
+	}
+	if _, err := s.CancelFleetAssignment(ctx, "invalid scope", "batch-test"); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument for invalid scope in CancelFleetAssignment")
+	}
+	if _, err := s.CancelFleetAssignment(ctx, "scope", "invalid batch!"); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument for invalid ID in CancelFleetAssignment")
+	}
+
+	// ScheduleApplication tests
+	startWindow := now.Add(10 * time.Minute)
+	op, err := s.ScheduleApplication(ctx, "scope", devID, artifact.SHA256, "sched-op-1", startWindow, startWindow.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if op.State != "QUEUED" {
+		t.Fatalf("unexpected op state: %s", op.State)
+	}
+
+	// CancelOperation
+	cancelledOp, err := s.CancelOperation(ctx, "scope", devID, op.ID)
+	if err != nil || cancelledOp.State != "CANCELLED" {
+		t.Fatalf("unexpected cancel op result: %+v, err: %v", cancelledOp, err)
+	}
+	if _, err := s.CancelOperation(ctx, "invalid scope!", devID, op.ID); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument for invalid scope")
+	}
+	if _, err := s.CancelOperation(ctx, "scope", "invalid-dev", op.ID); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument for invalid dev")
+	}
+	if _, err := s.CancelOperation(ctx, "scope", devID, "invalid-op"); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument for invalid op ID")
+	}
+
+	// ScheduleApplication invalid arguments
+	if _, err := s.ScheduleApplication(ctx, "invalid scope", devID, artifact.SHA256, "k", startWindow, startWindow.Add(time.Hour)); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument")
+	}
+	if _, err := s.ScheduleApplication(ctx, "scope", "invalid dev", artifact.SHA256, "k", startWindow, startWindow.Add(time.Hour)); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument")
+	}
+	if _, err := s.ScheduleApplication(ctx, "scope", devID, "invalid digest", "k", startWindow, startWindow.Add(time.Hour)); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument")
+	}
+	if _, err := s.ScheduleApplication(ctx, "scope", devID, artifact.SHA256, "invalid key!", startWindow, startWindow.Add(time.Hour)); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument")
+	}
+	if _, err := s.ScheduleApplication(ctx, "scope", devID, artifact.SHA256, "k", startWindow.Add(time.Hour), startWindow); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument when start after deadline")
+	}
+	if _, err := s.ScheduleApplication(ctx, "scope", devID, artifact.SHA256, "k", startWindow, startWindow.Add(8*24*time.Hour)); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument when window > 7 days")
+	}
+
+	// CreateFleetAssignment invalid requests
+	if _, err := s.CreateFleetAssignment(ctx, kylok.FleetRequest{ScopeID: "invalid scope"}); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument")
+	}
+	if _, err := s.CreateFleetAssignment(ctx, kylok.FleetRequest{ScopeID: "scope", ID: "invalid id!"}); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument")
+	}
+	if _, err := s.CreateFleetAssignment(ctx, kylok.FleetRequest{ScopeID: "scope", ID: "ok", ArtifactSHA256: "bad-digest"}); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument")
+	}
+	if _, err := s.CreateFleetAssignment(ctx, kylok.FleetRequest{ScopeID: "scope", ID: "ok", ArtifactSHA256: artifact.SHA256, GroupID: "bad group!"}); !errors.Is(err, kylok.ErrInvalidArgument) {
+		t.Fatal("expected ErrInvalidArgument")
+	}
+	if _, err := s.CreateFleetAssignment(ctx, kylok.FleetRequest{ScopeID: "scope", ID: "ok", ArtifactSHA256: artifact.SHA256, GroupID: "grp", DeviceIDs: []string{devID}}); err == nil {
+		t.Fatal("expected error when both GroupID and DeviceIDs set")
+	}
+	if _, err := s.CreateFleetAssignment(ctx, kylok.FleetRequest{ScopeID: "scope", ID: "ok", ArtifactSHA256: artifact.SHA256}); err == nil {
+		t.Fatal("expected error when neither GroupID nor DeviceIDs set")
+	}
+}

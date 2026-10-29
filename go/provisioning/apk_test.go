@@ -3,6 +3,8 @@ package provisioning_test
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -125,3 +127,157 @@ func TestGenericApplicationMetadataAndSplitRejection(t *testing.T) {
 		}
 	}
 }
+
+func TestAPKHandlerAndQRValidation(t *testing.T) {
+	apk := testapk.Make(t, testapk.Manifest)
+
+	// Test QR with invalid origin URL
+	if _, err := apk.QR("https://user:pass@invalid/path", nil); err == nil {
+		t.Fatal("expected error for invalid QR origin")
+	}
+
+	handler := apk.Handler()
+	if handler == nil {
+		t.Fatal("expected non-nil handler")
+	}
+
+	// GET on valid path
+	req := httptest.NewRequest(http.MethodGet, apk.Path(), nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if rec.Header().Get("ETag") != `"`+apk.Metadata().SHA256+`"` {
+		t.Fatalf("unexpected ETag: %s", rec.Header().Get("ETag"))
+	}
+	if rec.Body.Len() != len(apk.Bytes()) {
+		t.Fatalf("expected body length %d, got %d", len(apk.Bytes()), rec.Body.Len())
+	}
+
+	// HEAD on valid path
+	req = httptest.NewRequest(http.MethodHead, apk.Path(), nil)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	// GET on wrong path -> 404
+	req = httptest.NewRequest(http.MethodGet, "/wrong/path.apk", nil)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rec.Code)
+	}
+
+	// POST on valid path -> 405 MethodNotAllowed
+	req = httptest.NewRequest(http.MethodPost, apk.Path(), nil)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", rec.Code)
+	}
+	if rec.Header().Get("Allow") != "GET, HEAD" {
+		t.Fatalf("expected Allow: GET, HEAD, got %s", rec.Header().Get("Allow"))
+	}
+}
+
+// TestInspectErrorEdgeCases verifies Inspect error conditions on empty files and mock tool failures.
+func TestInspectErrorEdgeCases(t *testing.T) {
+	ctx := context.Background()
+
+	// 1. Empty file -> error "APK must be between 1 byte and 64 MiB"
+	emptyPath := t.TempDir() + "/empty.apk"
+	if err := os.WriteFile(emptyPath, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := provisioning.Inspect(ctx, emptyPath, provisioning.Tools{}); err == nil {
+		t.Fatal("expected error on 0 byte APK")
+	}
+
+	// 2. Signer outputs no certificates -> error
+	nonEmptyPath := t.TempDir() + "/dummy.apk"
+	if err := os.WriteFile(nonEmptyPath, []byte("dummy data"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := provisioning.Inspect(ctx, nonEmptyPath, provisioning.Tools{APKSigner: "echo"}); err == nil {
+		t.Fatal("expected error when signer returns no certs")
+	}
+
+	// 3. Invalid manifest XML
+	if _, err := testapk.InspectManifest(t, "<invalid xml>>>"); err == nil {
+		t.Fatal("expected error on invalid manifest XML")
+	}
+
+	// 4. Ambiguous device admin receivers
+	ambiguousManifest := `<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="io.kylok.unit" android:versionCode="3">
+<uses-sdk android:minSdkVersion="33" android:targetSdkVersion="37"/>
+<application android:allowBackup="false">
+<receiver android:name=".Admin1" android:exported="true" android:permission="android.permission.BIND_DEVICE_ADMIN">
+<meta-data android:name="android.app.device_admin" android:resource="@xml/admin"/>
+<intent-filter><action android:name="android.app.action.DEVICE_ADMIN_ENABLED"/></intent-filter></receiver>
+<receiver android:name=".Admin2" android:exported="true" android:permission="android.permission.BIND_DEVICE_ADMIN">
+<meta-data android:name="android.app.device_admin" android:resource="@xml/admin"/>
+<intent-filter><action android:name="android.app.action.DEVICE_ADMIN_ENABLED"/></intent-filter></receiver>
+<activity android:name=".Mode" android:exported="true" android:permission="android.permission.BIND_DEVICE_ADMIN"><intent-filter><action android:name="android.app.action.GET_PROVISIONING_MODE"/><category android:name="android.intent.category.DEFAULT"/></intent-filter></activity>
+<activity android:name=".Compliance" android:exported="true" android:permission="android.permission.BIND_DEVICE_ADMIN"><intent-filter><action android:name="android.app.action.ADMIN_POLICY_COMPLIANCE"/><category android:name="android.intent.category.DEFAULT"/></intent-filter></activity>
+</application></manifest>`
+	if _, err := testapk.InspectManifest(t, ambiguousManifest); err == nil || !strings.Contains(err.Error(), "ambiguous") {
+		t.Fatalf("expected ambiguous receiver error, got %v", err)
+	}
+
+	// 5. Receiver without dot
+	noDotManifest := strings.Replace(testapk.Manifest, `android:name=".Admin"`, `android:name="Admin"`, 1)
+	apk, err := testapk.InspectManifest(t, noDotManifest)
+	if err != nil {
+		t.Fatalf("failed to inspect manifest with no-dot receiver: %v", err)
+	}
+	if apk.Metadata().Receiver != "io.kylok.unit.Admin" {
+		t.Fatalf("expected resolved receiver io.kylok.unit.Admin, got %s", apk.Metadata().Receiver)
+	}
+
+	// 6. Application manifest without explicit min/target SDK (defaulting logic)
+	minimalAppManifest := `<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="io.kylok.app" android:versionCode="1"><application/></manifest>`
+	appApk, err := testapk.InspectApplication(t, minimalAppManifest)
+	if err != nil {
+		t.Fatalf("failed to inspect minimal application: %v", err)
+	}
+	if appApk.Metadata().MinSDK != 1 || appApk.Metadata().TargetSDK != 1 {
+		t.Fatalf("expected defaulted min/target SDK 1, got min=%d target=%d", appApk.Metadata().MinSDK, appApk.Metadata().TargetSDK)
+	}
+
+	// 7. Analyzer failure -> line 134
+	dir := t.TempDir()
+	signerScript := dir + "/signer.sh"
+	if err := os.WriteFile(signerScript, []byte("#!/bin/sh\nprintf '%s\\n' 'Signer #1 certificate SHA-256 digest: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := provisioning.Inspect(ctx, nonEmptyPath, provisioning.Tools{APKSigner: signerScript, APKAnalyzer: "false"}); err == nil {
+		t.Fatal("expected error on failed APKAnalyzer")
+	}
+
+	// 8. Invalid APK zip archive -> line 153
+	analyzerScript := dir + "/analyzer.sh"
+	if err := os.WriteFile(analyzerScript, []byte("#!/bin/sh\ncat <<'EOF'\n"+testapk.Manifest+"\nEOF\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := provisioning.Inspect(ctx, nonEmptyPath, provisioning.Tools{APKSigner: signerScript, APKAnalyzer: analyzerScript}); err == nil {
+		t.Fatal("expected error on invalid zip archive in Inspect")
+	}
+
+	// 9. Empty 0-byte APK -> line 99
+	emptyPath = dir + "/empty2.apk"
+	if err = os.WriteFile(emptyPath, []byte{}, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := provisioning.Inspect(ctx, emptyPath, provisioning.Tools{}); err == nil || !strings.Contains(err.Error(), "between 1 byte and 64 MiB") {
+		t.Fatalf("expected size error on empty APK, got %v", err)
+	}
+
+	// 10. Default tools APKSigner and APKAnalyzer strings -> lines 115, 118
+	_ = os.WriteFile(dir+"/dummy2.apk", []byte("dummy apk bytes"), 0600)
+	_, _ = provisioning.Inspect(ctx, dir+"/dummy2.apk", provisioning.Tools{})
+}
+
+

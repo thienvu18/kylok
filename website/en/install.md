@@ -11,7 +11,7 @@ Choose the current package versions from [GitHub Releases](https://github.com/th
 Add the Go SDK to your server module:
 
 ```sh
-go get github.com/thienvu18/kylok/go@v0.1.0-dev.40316176224
+go get github.com/thienvu18/kylok/go@v0.1.0-dev.40449063797
 ```
 
 Inspect the signed Android host APK, create the SDK and mount its handler on your server:
@@ -41,7 +41,7 @@ repositories {
     mavenCentral()
 }
 dependencies {
-    implementation("io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev.40316176224")
+    implementation("io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev.40449063797")
 }
 ```
 

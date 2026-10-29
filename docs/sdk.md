@@ -9,7 +9,7 @@ Module: `github.com/thienvu18/kylok/go`; current package version is in `go/VERSI
 Install the public Go package from a new Go module:
 
 ```sh
-go get github.com/thienvu18/kylok/go@v0.1.0-dev.40316176224
+go get github.com/thienvu18/kylok/go@v0.1.0-dev.40449063797
 ```
 
 For a local source distribution, substitute the absolute distribution path:
@@ -41,7 +41,7 @@ Defaults are durable SQLite/filesystem. Override `Options.Store` / `Artifacts` w
 
 ## Android host
 
-Public Android packages use Maven Central: configure `mavenCentral()`; the currently available public coordinate is `io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev.40316176224`. Local development coordinates are `io.github.thienvu18.kylok:kylok-dpc:0.3.0-dev`. Point a Maven repository at the extracted `kylok-maven.zip` or `out/release/maven`, then declare:
+Public Android packages use Maven Central: configure `mavenCentral()`; the latest public coordinate is `io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev.40449063797`. Local development coordinates are `io.github.thienvu18.kylok:kylok-dpc:0.3.0-dev`. Point a Maven repository at the extracted `kylok-maven.zip` or `out/release/maven`, then declare:
 
 ```kotlin
 // In the host's dependency repository configuration:
@@ -54,7 +54,7 @@ repositories {
 implementation("io.github.thienvu18.kylok:kylok-dpc:0.3.0-dev")
 ```
 
-Use min SDK 33, compile/target 37, JDK 17 and a compatible Kotlin 2.2 compiler. Maven metadata supplies transitive dependencies; copying only an AAR omits that information. The AAR contributes provisioning/admin/install/lifecycle components and consumer rules for Room/WorkManager. The host owns application ID, signing, HTTP permission/TLS trust and backup policy; preserve the SDK's data-extraction exclusions. It becomes Device Owner only through Android provisioning.
+Use min SDK 33, compile/target 37, JDK 17 and a compatible Kotlin 2.2 compiler. Maven metadata supplies transitive dependencies; copying only an AAR omits that information. The AAR manifest automatically contributes provisioning/admin/install/lifecycle components (including `KylokDeviceAdminReceiver`, `LifecycleReceiver`, and the persistent HOME launcher `KylokHomeActivity`), plus consumer rules for Room/WorkManager. Host applications do not need to declare these internal components in their own `AndroidManifest.xml`. The host owns application ID, signing, HTTP permission/TLS trust and backup policy; preserve the SDK's data-extraction exclusions. It becomes Device Owner only through Android provisioning (the AAR cannot grant itself Device Owner privilege).
 
 `Kylok.retry(context)` schedules reconciliation; `confirmPendingInstall(context)` opens a pending OS confirmation from a host user action. `snapshot(context) { AgentStatus -> … }` returns sanitized typed local state on the main thread. `observe(StatusListener { … })` registers optional notifications after worker commits; close the returned registration with the host lifecycle. Notifications are read-only, best-effort, not durable history. Observer exceptions cannot fail agent work. `status(context)` supplies formatted diagnostics; `sdkVersion` / `protocolVersion` expose SDK identity. Call `snapshot` for current state after subscribing; earlier notifications are not replayed.
 

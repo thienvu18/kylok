@@ -24,9 +24,9 @@ import javax.net.ssl.HttpsURLConnection
 /** Device Owner Wi-Fi and user-CA adapter; management traffic is verified on the specifically selected Android Network. */
 @Suppress("DEPRECATION") // Saved-network modification is explicitly supported for Device Owner despite ordinary-app deprecation.
 internal class AndroidNetworkPlatform(private val context: Context, private val storage: StateAccess) : NetworkPlatform {
-    private val wifi = context.getSystemService(WifiManager::class.java)
-    private val connectivity = context.getSystemService(ConnectivityManager::class.java)
-    private val dpm = context.getSystemService(DevicePolicyManager::class.java)
+    private val wifi = (context.getSystemService(WifiManager::class.java) ?: context.getSystemService(Context.WIFI_SERVICE)) as WifiManager
+    private val connectivity = (context.getSystemService(ConnectivityManager::class.java) ?: context.getSystemService(Context.CONNECTIVITY_SERVICE)) as ConnectivityManager
+    private val dpm = (context.getSystemService(DevicePolicyManager::class.java) ?: context.getSystemService(Context.DEVICE_POLICY_SERVICE)) as DevicePolicyManager
     private val admin = ComponentName(context, KylokDeviceAdminReceiver::class.java)
     companion object {
         private const val ASSOCIATION_TIMEOUT_MILLIS = 15_000L
@@ -46,9 +46,9 @@ internal class AndroidNetworkPlatform(private val context: Context, private val 
     override fun now() = System.currentTimeMillis()
     /** Classify exactly the supported security types; unknown configurations cannot be mistaken for managed profiles. */
     private fun security(config: WifiConfiguration): String = when {
-        config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.SAE) -> "WPA3_SAE"
-        config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK) -> "WPA2_PSK"
-        config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.NONE) && config.wepKeys.all { it == null } -> "OPEN"
+        config.allowedKeyManagement?.get(WifiConfiguration.KeyMgmt.SAE) == true -> "WPA3_SAE"
+        config.allowedKeyManagement?.get(WifiConfiguration.KeyMgmt.WPA_PSK) == true -> "WPA2_PSK"
+        config.allowedKeyManagement?.get(WifiConfiguration.KeyMgmt.NONE) == true && (config.wepKeys?.all { it == null } != false) -> "OPEN"
         else -> "OTHER"
     }
     /** Decode literal/hexadecimal Android SSID bytes without interpreting host values as JSON escapes. */
@@ -78,9 +78,9 @@ internal class AndroidNetworkPlatform(private val context: Context, private val 
                 "WPA2_PSK" -> {
                     setSecurityParams(WifiConfiguration.SECURITY_TYPE_PSK)
                     // Require RSN/AES for the explicit WPA2 security type.
-                    allowedProtocols.clear(); allowedProtocols.set(WifiConfiguration.Protocol.RSN)
-                    allowedPairwiseCiphers.clear(); allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.CCMP)
-                    allowedGroupCiphers.clear(); allowedGroupCiphers.set(WifiConfiguration.GroupCipher.CCMP)
+                    (allowedProtocols ?: java.util.BitSet().also { allowedProtocols = it }).apply { clear(); set(WifiConfiguration.Protocol.RSN) }
+                    (allowedPairwiseCiphers ?: java.util.BitSet().also { allowedPairwiseCiphers = it }).apply { clear(); set(WifiConfiguration.PairwiseCipher.CCMP) }
+                    (allowedGroupCiphers ?: java.util.BitSet().also { allowedGroupCiphers = it }).apply { clear(); set(WifiConfiguration.GroupCipher.CCMP) }
                 }
                 "WPA3_SAE" -> {
                     if (!wifi.isWpa3SaeSupported) throw NetworkRejected("WPA3_UNSUPPORTED")

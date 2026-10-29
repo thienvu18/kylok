@@ -26,8 +26,9 @@ class PolicyComplianceActivity : Activity() {
     private fun prepareLAN() {
         if (!Kylok.lanGranted(this)) {
             val dpm = getSystemService(DevicePolicyManager::class.java)
+                ?: getSystemService(DEVICE_POLICY_SERVICE) as? DevicePolicyManager
             runCatching {
-                dpm.setPermissionGrantState(ComponentName(this, KylokDeviceAdminReceiver::class.java),
+                dpm?.setPermissionGrantState(ComponentName(this, KylokDeviceAdminReceiver::class.java),
                     packageName, Kylok.LAN_PERMISSION,
                     DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED)
             }

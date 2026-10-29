@@ -64,4 +64,14 @@ class EnrollmentCryptoTest {
         val key = key()
         fails { EnrollmentCrypto.open(key.private, envelope(key).toBuilder().setProtocolVersion(2).build(), "attempt-0123456789") }
     }
+    @Test fun malformedEnvelopeFieldsAreRejected() {
+        val key = key()
+        val valid = envelope(key)
+        fails { EnrollmentCrypto.open(key.private, valid.toBuilder().clearDevice().build(), "attempt-0123456789") }
+        fails { EnrollmentCrypto.open(key.private, valid.toBuilder().clearCredential().build(), "attempt-0123456789") }
+        fails { EnrollmentCrypto.open(key.private, valid.toBuilder().setDevice(valid.device.toBuilder().setId("short-id")).build(), "attempt-0123456789") }
+        fails { EnrollmentCrypto.open(key.private, valid.toBuilder().setDevice(valid.device.toBuilder().setScopeId("!")).build(), "attempt-0123456789") }
+        fails { EnrollmentCrypto.open(key.private, valid.toBuilder().setCredential(valid.credential.toBuilder().setNonce(ByteString.copyFrom(ByteArray(8)))).build(), "attempt-0123456789") }
+        fails { EnrollmentCrypto.open(key.private, valid.toBuilder().setCredential(valid.credential.toBuilder().setCiphertext(ByteString.copyFrom(ByteArray(40)))).build(), "attempt-0123456789") }
+    }
 }

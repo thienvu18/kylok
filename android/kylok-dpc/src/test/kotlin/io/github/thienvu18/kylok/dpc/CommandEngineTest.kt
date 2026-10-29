@@ -113,5 +113,29 @@ class CommandEngineTest {
             assertEquals("FAILED", report(storage).state); assertEquals(code, report(storage).errorCode)
             assertEquals(0, platform.reboots)
         }
+
+        // SecurityException -> PLATFORM_PERMISSION_DENIED
+        val secStorage = state()
+        val secPlatform = object : CommandPlatform by Platform() {
+            override fun reboot() { throw SecurityException("denied") }
+        }
+        CommandEngine(secStorage, secPlatform).run()
+        assertEquals("FAILED", report(secStorage).state)
+        assertEquals("PLATFORM_PERMISSION_DENIED", report(secStorage).errorCode)
+
+        // RuntimeException -> UNCERTAIN, PLATFORM_ERROR
+        val errStorage = state()
+        val errPlatform = object : CommandPlatform by Platform() {
+            override fun reboot() { throw RuntimeException("generic failure") }
+        }
+        CommandEngine(errStorage, errPlatform).run()
+        assertEquals("UNCERTAIN", report(errStorage).state)
+        assertEquals("PLATFORM_ERROR", report(errStorage).errorCode)
+
+        // COMMAND_UNSUPPORTED
+        val unsupStorage = state("UNSUPPORTED_KIND")
+        CommandEngine(unsupStorage, Platform()).run()
+        assertEquals("FAILED", report(unsupStorage).state)
+        assertEquals("COMMAND_UNSUPPORTED", report(unsupStorage).errorCode)
     }
 }

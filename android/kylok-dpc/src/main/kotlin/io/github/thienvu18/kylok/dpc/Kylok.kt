@@ -24,7 +24,8 @@ object Kylok {
     private val listeners = StatusListeners()
     private val configuration = HostConfiguration()
     internal const val LAN_PERMISSION = "android.permission.ACCESS_LOCAL_NETWORK"
-    private val executor = Executors.newSingleThreadExecutor()
+    /** Dedicated background executor for asynchronous storage reads and diagnostics. */
+    internal var executor = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
     /** Configure scheduling before the first component/worker starts; equal repeats are idempotent.
      * Different options after work starts throw IllegalStateException. Options are process-local;
@@ -39,8 +40,8 @@ object Kylok {
     /** Freeze options for platform-triggered starts, independently of an opened Activity. */
     internal fun initialize() = configuration.start()
     /** Query effective ownership before any privileged agent work. */
-    internal fun owner(context: Context) =
-        context.getSystemService(DevicePolicyManager::class.java).isDeviceOwnerApp(context.packageName)
+    internal fun owner(context: Context) = (context.getSystemService(DevicePolicyManager::class.java)
+        ?: context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager)?.isDeviceOwnerApp(context.packageName) == true
     /** Older Android versions do not require the runtime LAN permission. */
     internal fun lanGranted(context: Context) = Build.VERSION.SDK_INT < 37 ||
         context.checkSelfPermission(LAN_PERMISSION) == PackageManager.PERMISSION_GRANTED
@@ -52,6 +53,7 @@ object Kylok {
         val app = context.applicationContext
         initialize()
         executor.execute {
+            var failureReason: Throwable? = null
             val success = runCatching {
                 AgentStorage.update(app) { state ->
                     state.put("callback", callback)
@@ -72,9 +74,15 @@ object Kylok {
                     }
                     if (owner(app) && state.optString("lifecycle") == "PROVISIONING") state.put("lifecycle", "DEVICE_OWNER")
                 }
-            }.isSuccess
-            if (success) schedule(app)
-            main.post { done(success) }
+            }.onFailure { failureReason = it }.isSuccess
+            if (success) {
+                try {
+                    schedule(app)
+                } catch (t: Throwable) {
+                    failureReason = t
+                }
+            }
+            main.post { done(success && failureReason == null) }
         }
     }
     /** Schedule deduplicated immediate and periodic repair, including unvalidated LANs. */

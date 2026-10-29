@@ -244,4 +244,394 @@ class NetworkEngineTest {
             assertTrue(report(restarted).state in setOf("APPLIED","FAILED"))
         }
     }
+
+    @Test
+    fun testNetworkValidationEdgeCases() {
+        val platform = Platform()
+
+        // Profiles count limit > 8
+        val b = NetworkPolicy.newBuilder()
+        for (i in 0..8) {
+            b.addProfiles(profile(ssid = "S$i").toBuilder().setId("p$i"))
+        }
+        b.setPrimaryId("p0")
+        var storage = state(b.build())
+        assertFalse(NetworkEngine(storage, platform).run())
+        assertEquals("NETWORK_LIMIT", report(storage).reason)
+
+        // Invalid profile ID
+        val badIdPolicy = NetworkPolicy.newBuilder()
+            .addProfiles(profile().toBuilder().setId("123bad"))
+            .setPrimaryId("123bad").build()
+        storage = state(badIdPolicy)
+        assertFalse(NetworkEngine(storage, platform).run())
+        assertEquals("INVALID_PROFILE", report(storage).reason)
+
+        // Invalid SSID
+        val badSsidPolicy = NetworkPolicy.newBuilder()
+            .addProfiles(profile(ssid = ""))
+            .setPrimaryId("office").build()
+        storage = state(badSsidPolicy)
+        assertFalse(NetworkEngine(storage, platform).run())
+        assertEquals("INVALID_PROFILE", report(storage).reason)
+
+        // Invalid secrets
+        val badOpen = NetworkPolicy.newBuilder()
+            .addProfiles(profile(pass = "notempty").toBuilder().setSecurity("OPEN"))
+            .setPrimaryId("office").build()
+        storage = state(badOpen)
+        assertFalse(NetworkEngine(storage, platform).run())
+        assertEquals("INVALID_PROFILE", report(storage).reason)
+
+        val badWpa2 = NetworkPolicy.newBuilder()
+            .addProfiles(profile(pass = "short"))
+            .setPrimaryId("office").build()
+        storage = state(badWpa2)
+        assertFalse(NetworkEngine(storage, platform).run())
+        assertEquals("INVALID_PROFILE", report(storage).reason)
+
+        val badWpa3 = NetworkPolicy.newBuilder()
+            .addProfiles(profile(pass = "\u0000").toBuilder().setSecurity("WPA3_SAE"))
+            .setPrimaryId("office").build()
+        storage = state(badWpa3)
+        assertFalse(NetworkEngine(storage, platform).run())
+        assertEquals("INVALID_PROFILE", report(storage).reason)
+
+        // Primary ID not in profiles
+        val missingPrimary = NetworkPolicy.newBuilder()
+            .addProfiles(profile())
+            .setPrimaryId("unknown").build()
+        storage = state(missingPrimary)
+        assertFalse(NetworkEngine(storage, platform).run())
+        assertEquals("PRIMARY_REQUIRED", report(storage).reason)
+
+        // Duplicate CA ID
+        val dupCa = NetworkPolicy.newBuilder()
+            .addProfiles(profile())
+            .setPrimaryId("office")
+            .addCertificates(CACertificate.newBuilder().setId("ca1").setDer(com.google.protobuf.ByteString.copyFrom(caA)))
+            .addCertificates(CACertificate.newBuilder().setId("ca1").setDer(com.google.protobuf.ByteString.copyFrom(caB)))
+            .build()
+        storage = state(dupCa)
+        assertFalse(NetworkEngine(storage, platform).run())
+        assertEquals("DUPLICATE_CA", report(storage).reason)
+
+        // Invalid CA bytes
+        assertThrows(NetworkRejected::class.java) {
+            networkCertificate(byteArrayOf(1, 2, 3), date)
+        }
+        assertThrows(NetworkRejected::class.java) {
+            networkCertificate(ByteArray(0), date)
+        }
+        assertThrows(NetworkRejected::class.java) {
+            networkCertificate(ByteArray(17 * 1024), date)
+        }
+        assertThrows(NetworkRejected::class.java) {
+            networkCertificate(caA, 0L) // expired / future date
+        }
+    }
+
+    @Test
+    fun testRecoverConnectivityBranches() {
+        val platform = Platform()
+        val storage = state(policy())
+        val engine = NetworkEngine(storage, platform)
+
+        // No transaction, no current policy -> returns false
+        assertFalse(engine.recoverConnectivity())
+
+        // Successfully applied policy
+        assertTrue(!engine.run() && report(storage).state == "APPLIED")
+        assertEquals("APPLIED", report(storage).state)
+
+        // Primary route healthy -> returns false
+        assertFalse(engine.recoverConnectivity())
+
+        // Primary route probe fails, recovery route succeeds
+        val platformWithRecovery = object : NetworkPlatform by platform {
+            override fun probe(id: Int, policy: NetworkPolicy): Boolean {
+                return id == 1 // recovery route succeeds, primary fails
+            }
+        }
+        storage.update { it.remove("network_failed_revision") }
+        val eng2 = NetworkEngine(storage, platformWithRecovery)
+        assertFalse(eng2.recoverConnectivity())
+        assertEquals("FAILED", report(storage).state)
+        assertEquals("RECOVERY_ROUTE_ACTIVE", report(storage).reason)
+    }
+
+    @Test
+    fun testRunAndRecoverAdditionalBranches() {
+        val platform = Platform()
+        val storage = MemoryState(JSONObject())
+        val engine = NetworkEngine(storage, platform)
+
+        // desired is null -> run() returns false
+        assertFalse(engine.run())
+
+        // network_failed_revision == want.revision -> returns false
+        val p = policy()
+        desired(storage, p, 10L)
+        storage.update { it.put("network_failed_revision", 10L) }
+        assertFalse(engine.run())
+        storage.update { it.remove("network_failed_revision") }
+
+        // Recovery route SSID collision
+        val collide = policy(profile(ssid = "Recovery"))
+        desired(storage, collide, 11L)
+        assertFalse(engine.run())
+        assertEquals("INDEPENDENT_RECOVERY_REQUIRED", report(storage).reason)
+
+        // Permission required (SecurityException)
+        val denyPlatform = object : NetworkPlatform by platform {
+            override fun check() { throw SecurityException("Denied") }
+        }
+        desired(storage, p, 12L)
+        assertFalse(NetworkEngine(storage, denyPlatform).run())
+        assertEquals("UNSUPPORTED", report(storage).state)
+        assertEquals("NETWORK_PERMISSION_REQUIRED", report(storage).reason)
+    }
+
+    @Test
+    fun testRecoverVerifiedTransactionFlows() {
+        val platform = Platform()
+        val storage = MemoryState(JSONObject())
+        val engine = NetworkEngine(storage, platform)
+
+        val prof = profile("good-pass", "ManagedSSID")
+        val p = policy(prof)
+        val want = DesiredNetworkPolicy.newBuilder().setRevision(15L).setPolicy(p).build()
+        val profRecord = JSONObject().put("id", 2).put("profile", encode(prof))
+        val recRecord = JSONObject().put("id", 1).put("ssid", "Recovery").put("security", "WPA2_PSK")
+        val stagedProfiles = JSONObject().put(prof.id, profRecord)
+        val tx = JSONObject().put("intent", encode(want)).put("verified", true)
+            .put("profiles", stagedProfiles).put("before_profiles", JSONObject())
+        storage.update { it.put("network_transaction", tx).put("network_recovery", recRecord) }
+
+        platform.configs[2] = SavedNetwork(2, "ManagedSSID", "WPA2_PSK")
+        platform.caller.add(2)
+        platform.active = 2
+
+        // Success path
+        assertFalse(engine.recover())
+        assertEquals("APPLIED", report(storage).state)
+        assertTrue(report(storage).connectivityVerified)
+
+        // Readback mismatch path -> throws NetworkRejected -> reports PENDING, RECOVERY_PENDING, returns true
+        val txMismatch = JSONObject().put("intent", encode(want)).put("verified", true)
+            .put("profiles", JSONObject()) // empty profiles
+            .put("before_profiles", JSONObject())
+        storage.update { it.put("network_transaction", txMismatch).put("network_recovery", recRecord) }
+        assertTrue(engine.recover())
+        assertEquals("PENDING", report(storage).state)
+        assertEquals("RECOVERY_PENDING", report(storage).reason)
+
+        // SecurityException path -> returns true, reports RECOVERY_PERMISSION_REQUIRED
+        val secPlatform = object : NetworkPlatform by platform {
+            override fun check() { throw SecurityException("Denied") }
+        }
+        val secEngine = NetworkEngine(storage, secPlatform)
+        assertTrue(secEngine.recover())
+        assertEquals("PENDING", report(storage).state)
+        assertEquals("RECOVERY_PERMISSION_REQUIRED", report(storage).reason)
+
+        // Interrupted unverified migration path -> rollback and report FAILED
+        val txUnverified = JSONObject().put("intent", encode(want)).put("verified", false)
+            .put("profiles", stagedProfiles).put("before_profiles", JSONObject())
+        storage.update { it.put("network_transaction", txUnverified).put("network_recovery", recRecord) }
+        assertFalse(engine.recover())
+        assertEquals("FAILED", report(storage).state)
+        assertEquals("INTERRUPTED_MIGRATION_RECOVERED", report(storage).reason)
+        assertEquals(15L, storage.read().getLong("network_failed_revision"))
+    }
+
+    @Test
+    fun testRecoverConnectivityEdgeCases() {
+        val platform = Platform()
+        val storage = MemoryState(JSONObject())
+        val engine = NetworkEngine(storage, platform)
+
+        // Empty current policy -> returns false
+        val emptyP = DesiredNetworkPolicy.newBuilder().setRevision(1L).setPolicy(NetworkPolicy.getDefaultInstance()).build()
+        storage.update {
+            it.put("network_current", encode(emptyP))
+                .put("network_recovery", JSONObject().put("id", 1).put("ssid", "Recovery").put("security", "WPA2_PSK"))
+        }
+        assertFalse(engine.recoverConnectivity())
+
+        // Connect recovery fails with NetworkRejected -> reports PENDING, returns true
+        val prof = profile("good-pass", "ManagedSSID")
+        val p = policy(prof)
+        val want = DesiredNetworkPolicy.newBuilder().setRevision(2L).setPolicy(p).build()
+        val profRecord = JSONObject().put("id", 2).put("profile", encode(prof))
+        storage.update {
+            it.put("network_current", encode(want))
+                .put("network_profiles", JSONObject().put(prof.id, profRecord))
+        }
+        val failProbePlatform = object : NetworkPlatform by platform {
+            override fun probe(id: Int, policy: NetworkPolicy): Boolean = false
+        }
+        assertTrue(NetworkEngine(storage, failProbePlatform).recoverConnectivity())
+        assertEquals("PENDING", report(storage).state)
+        assertEquals("RECOVERY_PENDING", report(storage).reason)
+
+        // Connect recovery fails with SecurityException -> reports UNSUPPORTED, returns false
+        val secPlatform = object : NetworkPlatform by platform {
+            override fun probe(id: Int, policy: NetworkPolicy): Boolean { throw SecurityException("Not allowed") }
+        }
+        assertFalse(NetworkEngine(storage, secPlatform).recoverConnectivity())
+        assertEquals("UNSUPPORTED", report(storage).state)
+        assertEquals("NETWORK_PERMISSION_REQUIRED", report(storage).reason)
+    }
+
+    @Test
+    fun testRunCurrentPolicyReapplicationBranches() {
+        val platform = Platform()
+        val storage = MemoryState(JSONObject())
+        val engine = NetworkEngine(storage, platform)
+
+        val prof = profile("good-pass", "ManagedSSID")
+        val p = policy(prof, cas = listOf(caA))
+        val want = DesiredNetworkPolicy.newBuilder().setRevision(5L).setPolicy(p).build()
+        desired(storage, p, 5L)
+
+        val profRecord = JSONObject().put("id", 2).put("profile", encode(prof))
+        val recRecord = JSONObject().put("id", 1).put("ssid", "Recovery").put("security", "WPA2_PSK")
+
+        platform.configs[2] = SavedNetwork(2, "ManagedSSID", "WPA2_PSK")
+        platform.caller.add(2)
+        platform.active = 2
+        platform.certificates.add(caDigest(caA))
+
+        storage.update {
+            it.put("network_current", encode(want))
+                .put("network_profiles", JSONObject().put(prof.id, profRecord))
+                .put("network_recovery", recRecord)
+        }
+
+        // Current policy matches desired, readback matches, CA exists, probe succeeds -> APPLIED
+        assertFalse(engine.run())
+        assertEquals("APPLIED", report(storage).state)
+
+        // Readback profile missing from network_profiles -> throws NETWORK_READBACK_MISMATCH -> reports FAILED
+        storage.update {
+            it.put("network_profiles", JSONObject())
+        }
+        assertFalse(engine.run())
+        assertEquals("FAILED", report(storage).state)
+        assertEquals("NETWORK_READBACK_MISMATCH", report(storage).reason)
+
+        // Profile exists in network_profiles but not configured on platform -> throws NETWORK_READBACK_MISMATCH
+        storage.update {
+            it.put("network_profiles", JSONObject().put(prof.id, JSONObject().put("id", 99).put("profile", encode(prof))))
+        }
+        assertFalse(engine.run())
+        assertEquals("FAILED", report(storage).state)
+        assertEquals("NETWORK_READBACK_MISMATCH", report(storage).reason)
+
+        // Probe fails -> reports PENDING, MANAGEMENT_UNREACHABLE, returns true
+        storage.update {
+            it.put("network_profiles", JSONObject().put(prof.id, profRecord))
+        }
+        val unreachPlatform = object : NetworkPlatform by platform {
+            override fun probe(id: Int, policy: NetworkPolicy): Boolean = false
+        }
+        assertTrue(NetworkEngine(storage, unreachPlatform).run())
+        assertEquals("PENDING", report(storage).state)
+        assertEquals("MANAGEMENT_UNREACHABLE", report(storage).reason)
+
+        // CA drift -> throws CA_DRIFT
+        platform.certificates.clear()
+        assertFalse(engine.run())
+        assertEquals("FAILED", report(storage).state)
+        assertEquals("CA_DRIFT", report(storage).reason)
+    }
+
+    @Test
+    fun testValidationSecretsAndProfiles() {
+        val platform = Platform()
+        val storage = MemoryState(JSONObject())
+        val engine = NetworkEngine(storage, platform)
+
+        // OPEN profile with secret -> INVALID_PROFILE
+        val openWithPass = NetworkPolicy.newBuilder()
+            .setPrimaryId("p1")
+            .addProfiles(WifiProfile.newBuilder().setId("p1").setSsid("OpenNet").setSecurity("OPEN").setPassphrase(com.google.protobuf.ByteString.copyFromUtf8("somepass")))
+            .build()
+        desired(storage, openWithPass, 20L)
+        assertFalse(engine.run())
+        assertEquals("INVALID_PROFILE", report(storage).reason)
+
+        // WPA2_PSK with 64 hex characters -> valid
+        val hex64 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        val pskHex = NetworkPolicy.newBuilder()
+            .setPrimaryId("p2")
+            .addProfiles(WifiProfile.newBuilder().setId("p2").setSsid("HexNet").setSecurity("WPA2_PSK").setPassphrase(com.google.protobuf.ByteString.copyFromUtf8(hex64)))
+            .build()
+        desired(storage, pskHex, 21L)
+        assertFalse(engine.run()) // Proceeds past validation, fails on recovery / probe
+        assertNotEquals("INVALID_PROFILE", report(storage).reason)
+
+        // WPA2_PSK with invalid length (< 8) -> INVALID_PROFILE
+        val pskShort = NetworkPolicy.newBuilder()
+            .setPrimaryId("p3")
+            .addProfiles(WifiProfile.newBuilder().setId("p3").setSsid("ShortNet").setSecurity("WPA2_PSK").setPassphrase(com.google.protobuf.ByteString.copyFromUtf8("short")))
+            .build()
+        desired(storage, pskShort, 22L)
+        assertFalse(engine.run())
+        assertEquals("INVALID_PROFILE", report(storage).reason)
+
+        // WPA3_SAE with control char -> INVALID_PROFILE
+        val saeCtrl = NetworkPolicy.newBuilder()
+            .setPrimaryId("p4")
+            .addProfiles(WifiProfile.newBuilder().setId("p4").setSsid("SaeNet").setSecurity("WPA3_SAE").setPassphrase(com.google.protobuf.ByteString.copyFrom(byteArrayOf(10, 20, 30))))
+            .build()
+        desired(storage, saeCtrl, 23L)
+        assertFalse(engine.run())
+        assertEquals("INVALID_PROFILE", report(storage).reason)
+
+        // WPA3_SAE with valid UTF-8 passphrase -> valid
+        val saeValid = NetworkPolicy.newBuilder()
+            .setPrimaryId("p5")
+            .addProfiles(WifiProfile.newBuilder().setId("p5").setSsid("SaeValidNet").setSecurity("WPA3_SAE").setPassphrase(com.google.protobuf.ByteString.copyFromUtf8("validPassphrase123")))
+            .build()
+        desired(storage, saeValid, 24L)
+        assertFalse(engine.run())
+        assertNotEquals("INVALID_PROFILE", report(storage).reason)
+
+        // Empty profiles with primary ID set -> PRIMARY_REQUIRED
+        val emptyWithPrimary = NetworkPolicy.newBuilder().setPrimaryId("p_none").build()
+        desired(storage, emptyWithPrimary, 25L)
+        assertFalse(engine.run())
+        assertEquals("PRIMARY_REQUIRED", report(storage).reason)
+
+        // Duplicate profile SSID -> INVALID_PROFILE
+        val dupSSID = NetworkPolicy.newBuilder()
+            .setPrimaryId("p1")
+            .addProfiles(WifiProfile.newBuilder().setId("p1").setSsid("SameSSID").setSecurity("OPEN"))
+            .addProfiles(WifiProfile.newBuilder().setId("p2").setSsid("SameSSID").setSecurity("OPEN"))
+            .build()
+        desired(storage, dupSSID, 26L)
+        assertFalse(engine.run())
+        assertEquals("INVALID_PROFILE", report(storage).reason)
+
+        // More than 8 profiles -> NETWORK_LIMIT
+        val tooManyProfiles = NetworkPolicy.newBuilder().setPrimaryId("p0")
+        for (i in 0..8) {
+            tooManyProfiles.addProfiles(WifiProfile.newBuilder().setId("p$i").setSsid("SSID_$i").setSecurity("OPEN"))
+        }
+        desired(storage, tooManyProfiles.build(), 27L)
+        assertFalse(engine.run())
+        assertEquals("NETWORK_LIMIT", report(storage).reason)
+
+        // Duplicate CA ID -> DUPLICATE_CA
+        val ca1 = CACertificate.newBuilder().setId("ca-same").setDer(ByteString.copyFrom(caA)).build()
+        val ca2 = CACertificate.newBuilder().setId("ca-same").setDer(ByteString.copyFrom(caB)).build()
+        val dupCA = NetworkPolicy.newBuilder()
+            .addAllCertificates(listOf(ca1, ca2))
+            .build()
+        desired(storage, dupCA, 28L)
+        assertFalse(engine.run())
+        assertEquals("DUPLICATE_CA", report(storage).reason)
+    }
 }

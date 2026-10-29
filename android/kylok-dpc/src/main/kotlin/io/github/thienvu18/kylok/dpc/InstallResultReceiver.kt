@@ -37,19 +37,32 @@ class InstallResultReceiver : BroadcastReceiver() {
                 }
                 confirmation?.let { showConfirmation(context, session, it) }
                 Kylok.schedule(context)
-            } finally { pending.finish() }
+                if (result == PackageInstaller.STATUS_SUCCESS) LauncherRecovery.recover(context)
+            } finally { pending?.finish() }
         }
     }
     /** Offer the OS confirmation without losing the persisted fallback when notifications are denied. */
     private fun showConfirmation(context: Context, session: Int, intent: Intent) {
         val manager = context.getSystemService(NotificationManager::class.java)
+            ?: context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
         manager.createNotificationChannel(NotificationChannel("kylok-installs", "Application installation", NotificationManager.IMPORTANCE_DEFAULT))
         val action = PendingIntent.getActivity(context, session, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val notification = Notification.Builder(context, "kylok-installs")
-            .setSmallIcon(android.R.drawable.stat_sys_download_done).setContentTitle("Installation needs confirmation")
-            .setContentText("Open to review the Android installation prompt.").setContentIntent(action).setAutoCancel(true).build()
+        val notification = runCatching {
+            Notification.Builder(context, "kylok-installs").apply {
+                setSmallIcon(android.R.drawable.stat_sys_download_done)
+                setContentTitle("Installation needs confirmation")
+                setContentText("Open to review the Android installation prompt.")
+                setContentIntent(action)
+                setAutoCancel(true)
+            }.build()
+        }.getOrNull()
         // Without notification permission the pending action remains available through Kylok.confirmPendingInstall.
-        runCatching { manager.notify(session, notification) }
+        if (notification != null) {
+            runCatching { manager.notify(session, notification) }
+        }
     }
-    companion object { private val executor = Executors.newSingleThreadExecutor() }
+    companion object {
+        /** Background executor for processing broadcast results without blocking the main thread. */
+        internal var executor: java.util.concurrent.Executor = Executors.newSingleThreadExecutor()
+    }
 }

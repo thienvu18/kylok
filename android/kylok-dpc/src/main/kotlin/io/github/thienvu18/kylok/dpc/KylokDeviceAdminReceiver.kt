@@ -10,13 +10,13 @@ class KylokDeviceAdminReceiver : DeviceAdminReceiver() {
     override fun onProfileProvisioningComplete(context: Context, intent: Intent) {
         Kylok.initialize()
         val pending = goAsync()
-        Kylok.capture(context, intent, "PROFILE_PROVISIONING_COMPLETE") { pending.finish() }
+        Kylok.capture(context, intent, "PROFILE_PROVISIONING_COMPLETE") { pending?.finish() }
     }
     /** Capture administrator activation without treating it as proof of Device Owner. Usage: Android invokes this administrator callback. */
     override fun onEnabled(context: Context, intent: Intent) {
         Kylok.initialize()
         val pending = goAsync()
-        Kylok.capture(context, intent, "DEVICE_ADMIN_ENABLED") { pending.finish() }
+        Kylok.capture(context, intent, "DEVICE_ADMIN_ENABLED") { pending?.finish() }
     }
     /** Record the package and current boot for later managed Lock Task observation. Usage: Android invokes the administrator Lock Task callback. */
     override fun onLockTaskModeEntering(context: Context, intent: Intent, pkg: String) { recordLockTask(context, pkg) }
@@ -31,7 +31,10 @@ class KylokDeviceAdminReceiver : DeviceAdminReceiver() {
                 AgentStorage.update(context) { it.put("lock_task_package", pkg)
                     .put("lock_task_boot", AndroidPolicyPlatform.bootCount(context)) }
                 Kylok.schedule(context)
-            } finally { pending.finish() }
+                if (pkg.isEmpty()) {
+                    LauncherRecovery.recover(context)
+                }
+            } finally { pending?.finish() }
         }
     }
     companion object { private val callbacks = java.util.concurrent.Executors.newSingleThreadExecutor() }

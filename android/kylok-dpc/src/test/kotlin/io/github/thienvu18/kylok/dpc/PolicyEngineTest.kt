@@ -24,7 +24,7 @@ class PolicyEngineTest {
         .apply { if (kiosk) lockTask = LockTaskPolicy.newBuilder().addPackages(artifact.packageName).setKioskPackage(artifact.packageName).build() }.build()
     private fun reports(storage: StateAccess) = PolicyReport.parseFrom(decode(storage.read().getString("policy_report"))).resultsList.associateBy { it.ruleId }
     private class Death : Error()
-    private class Platform : PolicyPlatform {
+    private open class Platform : PolicyPlatform {
         var time = 1L
         var owner = true
         var observed: InstalledApplication? = null
@@ -35,6 +35,7 @@ class PolicyEngineTest {
         val denied = mutableSetOf<String>()
         val values = mutableMapOf<String, String>()
         val effects = mutableListOf<PolicySetting>()
+        val uninstallBlocked = mutableSetOf<String>()
         override fun now() = time
         override fun isOwner() = owner
         override fun installed(packageName: String) = observed?.takeIf { it.packageName == packageName }
@@ -52,6 +53,10 @@ class PolicyEngineTest {
             if (!noOp && !(asyncKiosk && setting.kind == PolicyKind.LOCK_TASK)) values[setting.id] = setting.value
             if (crashAfterApply) throw Death()
         }
+        override fun setUninstallBlocked(packageName: String, blocked: Boolean) {
+            if (blocked) uninstallBlocked += packageName else uninstallBlocked -= packageName
+        }
+        override fun isUninstallBlocked(packageName: String): Boolean = packageName in uninstallBlocked
     }
     @Test fun absentPolicyDoesNotTouchSettings() {
         val platform = Platform()
@@ -215,5 +220,64 @@ class PolicyEngineTest {
         assertFalse(PolicyEngine(storage, platform).run())
         assertEquals("true", platform.values["camera"])
         assertEquals("60000", platform.values["maximum_time_to_lock"])
+    }
+    @Test fun runningLauncherDistinguishesRunningKioskFromSuccessfulSetter() {
+        val storage = state(policy(true))
+        val platform = Platform().apply {
+            observed = app()
+            asyncKiosk = true
+            // Setter succeeds, but launcher is preferred without being locked yet
+            values["lock_task"] = lockTaskValue(listOf(artifact.packageName), "LAUNCHER_PREFERRED_NOT_LOCKED")
+        }
+        assertTrue(PolicyEngine(storage, platform).run())
+        assertEquals(ComplianceState.COMPLIANCE_STATE_PENDING, reports(storage).getValue("lock_task").state)
+        assertEquals("OBSERVATION_PENDING", reports(storage).getValue("lock_task").reason)
+
+        // Locked without launcher also remains pending
+        platform.values["lock_task"] = lockTaskValue(listOf(artifact.packageName), "LOCKED_WITHOUT_LAUNCHER")
+        assertTrue(PolicyEngine(storage, platform).run())
+        assertEquals(ComplianceState.COMPLIANCE_STATE_PENDING, reports(storage).getValue("lock_task").state)
+
+        // Only when both launcher and locked package match does it apply
+        platform.values["lock_task"] = lockTaskValue(listOf(artifact.packageName), artifact.packageName)
+        assertFalse(PolicyEngine(storage, platform).run())
+        assertEquals(ComplianceState.COMPLIANCE_STATE_APPLIED, reports(storage).getValue("lock_task").state)
+    }
+    @Test fun requiredPackagesAreBlockedFromUninstallationAtOSLevel() {
+        val storage = state(policy())
+        val platform = Platform().apply { observed = app() }
+        assertFalse(PolicyEngine(storage, platform).run())
+        assertTrue(platform.isUninstallBlocked(artifact.packageName))
+        assertEquals(ComplianceState.COMPLIANCE_STATE_APPLIED, reports(storage).getValue("required:${artifact.packageName}").state)
+    }
+    @Test fun unconfirmedUninstallBlockKeepsRequiredPackagePending() {
+        val storage = state(policy())
+        val platform = object : Platform() {
+            override fun isUninstallBlocked(packageName: String): Boolean = false
+        }.apply { observed = app() }
+        assertTrue(PolicyEngine(storage, platform).run())
+        assertEquals(ComplianceState.COMPLIANCE_STATE_PENDING, reports(storage).getValue("required:${artifact.packageName}").state)
+        assertEquals("UNINSTALL_BLOCK_PENDING", reports(storage).getValue("required:${artifact.packageName}").reason)
+    }
+    @Test fun removingRequiredPackageUnblocksUninstallUnlessRestrictionActive() {
+        val storage = state(policy())
+        val platform = Platform().apply { observed = app() }
+        assertFalse(PolicyEngine(storage, platform).run())
+        assertTrue(platform.isUninstallBlocked(artifact.packageName))
+
+        // Replace with empty policy: required package should be unblocked
+        storage.update { it.put("snapshot", encode(snapshot(Policy.getDefaultInstance(), 3))) }
+        assertFalse(PolicyEngine(storage, platform).run())
+        assertFalse(platform.isUninstallBlocked(artifact.packageName))
+
+        // Now test with no_uninstall_apps restriction active: package must remain blocked
+        val restrictedPolicy = Policy.newBuilder()
+            .addRestrictions(RestrictionRule.newBuilder().setName(RESTRICTION_NO_UNINSTALL_APPS).setEnabled(true)).build()
+        platform.setUninstallBlocked(artifact.packageName, true)
+        val storageRestricted = state(policy())
+        PolicyEngine(storageRestricted, platform).run()
+        storageRestricted.update { it.put("snapshot", encode(snapshot(restrictedPolicy, 4))) }
+        PolicyEngine(storageRestricted, platform).run()
+        assertTrue(platform.isUninstallBlocked(artifact.packageName))
     }
 }

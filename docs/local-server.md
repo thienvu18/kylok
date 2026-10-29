@@ -41,7 +41,7 @@ In another terminal:
 export PATH="$ANDROID_HOME/build-tools/37.0.0:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
 . "$HOME/.local/share/kylok-local-server/192.168.101.5/http.env"
 ./out/minimal-server enroll -public-url "$KYLOK_PUBLIC_URL" -apk "$KYLOK_APK" \
-  -data "$KYLOK_DATA" -scope poco-lab -ttl 2h -out "$KYLOK_LOCAL_DIR/enrollment"
+  -data "$KYLOK_DATA" -scope local-lab -ttl 2h -out "$KYLOK_LOCAL_DIR/enrollment"
 ```
 
 Display the generated `.png` locally and scan from factory-reset enterprise setup (commonly six taps at the welcome screen). CLI QR files contain a one-device token and are not served by the agent/APK listener. The command refuses to overwrite output. Preserve the signed APK bytes after QR issuance. Follow the [physical checklist](provisioning.md).
@@ -52,19 +52,19 @@ CLI management uses the host's authorized shell/data access. Common flags below 
 
 ```sh
 ./out/minimal-server list -public-url "$KYLOK_PUBLIC_URL" -apk "$KYLOK_APK" \
-  -data "$KYLOK_DATA" -scope poco-lab
+  -data "$KYLOK_DATA" -scope local-lab
 ./out/minimal-server register -public-url "$KYLOK_PUBLIC_URL" -apk "$KYLOK_APK" \
-  -data "$KYLOK_DATA" -scope poco-lab -application-apk /absolute/path/application.apk
+  -data "$KYLOK_DATA" -scope local-lab -application-apk /absolute/path/application.apk
 ```
 
 Use the device ID from `list` and SHA-256 from `register`:
 
 ```sh
 ./out/minimal-server assign -public-url "$KYLOK_PUBLIC_URL" -apk "$KYLOK_APK" \
-  -data "$KYLOK_DATA" -scope poco-lab -device "$DEVICE_ID" -digest "$ARTIFACT_SHA256" \
+  -data "$KYLOK_DATA" -scope local-lab -device "$DEVICE_ID" -digest "$ARTIFACT_SHA256" \
   -request-key install-001 -timeout 24h
 ./out/minimal-server operations -public-url "$KYLOK_PUBLIC_URL" -apk "$KYLOK_APK" \
-  -data "$KYLOK_DATA" -scope poco-lab -device "$DEVICE_ID"
+  -data "$KYLOK_DATA" -scope local-lab -device "$DEVICE_ID"
 ```
 
 Assignment advances desired state; it is not installation success. Wait for observed results. A repeated request key returns the original assignment; a different artifact with that key conflicts. A fresh key supersedes older pending work for the package. `remove -digest ...` rejects desired/active references; physical content is retained safely. `revoke -device ...` rejects further device access without resetting Android.
@@ -75,10 +75,10 @@ After assigning required APKs, save a [policy document](policies.md) to a local 
 
 ```sh
 ./out/minimal-server set-policy -public-url "$KYLOK_PUBLIC_URL" -apk "$KYLOK_APK" \
-  -data "$KYLOK_DATA" -scope poco-lab -device "$DEVICE_ID" \
+  -data "$KYLOK_DATA" -scope local-lab -device "$DEVICE_ID" \
   -request-key policy-001 -policy /absolute/path/policy.json
 ./out/minimal-server policy -public-url "$KYLOK_PUBLIC_URL" -apk "$KYLOK_APK" \
-  -data "$KYLOK_DATA" -scope poco-lab -device "$DEVICE_ID"
+  -data "$KYLOK_DATA" -scope local-lab -device "$DEVICE_ID"
 ```
 
 Inspect `desired`, `reported`, and per-rule `compliance`; submission is not enforcement. To release managed settings and exit kiosk, submit a file containing `{}` with a fresh request key. The device must receive that replacement; previously cached policy remains effective while offline. The CLI rejects unknown JSON fields and reads at most 64 KiB.

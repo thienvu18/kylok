@@ -1,3 +1,8 @@
 <resources>
     <string name="kylok_lan_required">LAN permission is required for enrollment. Grant it and retry setup.</string>
+    <string name="kylok_launcher_title">Kylok Managed Launcher</string>
+    <string name="kylok_launcher_starting">Starting application…</string>
+    <string name="kylok_launcher_waiting">Waiting for application to be installed…</string>
+    <string name="kylok_launcher_recovering">Recovering application…</string>
+    <string name="kylok_launcher_locked">Device is locked. Unlock to resume application.</string>
 </resources>

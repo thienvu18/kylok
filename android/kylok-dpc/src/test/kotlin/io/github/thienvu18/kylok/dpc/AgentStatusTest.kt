@@ -44,9 +44,75 @@ class AgentStatusTest {
         val value = statusValue(state, true, true)
         assertEquals("MANAGED", value.lifecycle)
         assertEquals(3, value.desiredRevision)
+        assertEquals("device", value.deviceId)
+        assertEquals("scope", value.scopeId)
+        assertTrue(value.deviceOwner)
+        assertTrue(value.lanPermissionGranted)
+        assertEquals(BuildConfig.PROTOCOL_VERSION, value.protocolVersion)
         assertEquals(PolicyStatus("camera", "PENDING", "OBSERVATION_PENDING"), value.policies.single())
         assertFalse(value.toString().contains("private-"))
         assertEquals(BuildConfig.SDK_VERSION, value.sdkVersion)
+    }
+    @Test fun testDataClassAccessorsAndSanitization() {
+        val op = InstallationStatus(
+            id = "op-1",
+            packageName = "com.test.pkg",
+            version = 12L,
+            stage = "DOWNLOADED",
+            downloadedBytes = 1024L,
+            sizeBytes = 2048L,
+            error = "none",
+            requiresUserAction = false
+        )
+        assertEquals("op-1", op.id)
+        assertEquals("com.test.pkg", op.packageName)
+        assertEquals(12L, op.version)
+        assertEquals("DOWNLOADED", op.stage)
+        assertEquals(1024L, op.downloadedBytes)
+        assertEquals(2048L, op.sizeBytes)
+        assertEquals("none", op.error)
+        assertFalse(op.requiresUserAction)
+
+        val cmd = CommandStatus("cmd-1", "REBOOT", "APPLIED", "NONE")
+        assertEquals("cmd-1", cmd.id)
+        assertEquals("REBOOT", cmd.kind)
+        assertEquals("APPLIED", cmd.state)
+        assertEquals("NONE", cmd.errorCode)
+
+        val net = NetworkLifecycleStatus(1L, "APPLIED", "VERIFIED", "prof-1", true, true)
+        assertEquals(1L, net.revision)
+        assertEquals("APPLIED", net.state)
+        assertEquals("VERIFIED", net.reason)
+        assertEquals("prof-1", net.activeProfileId)
+        assertTrue(net.connectivityVerified)
+        assertTrue(net.cleanupComplete)
+
+        val status = AgentStatus(
+            sdkVersion = "1.0.0",
+            protocolVersion = 1,
+            lifecycle = "MANAGED",
+            deviceId = "dev-1",
+            scopeId = "scope-1",
+            deviceOwner = true,
+            lanPermissionGranted = true,
+            desiredRevision = 5L,
+            lastResult = "OK",
+            policies = emptyList(),
+            serverOrigin = "https://server.example.com",
+            lastSyncUnixMillis = 5000L,
+            syncSequence = 2L,
+            pendingReports = 3,
+            applications = listOf(ApplicationStatus("com.test.pkg", 12L, 12L, "APPLIED", "OK")),
+            operations = listOf(op),
+            commands = listOf(cmd),
+            network = net
+        )
+        assertEquals("https://server.example.com", status.serverOrigin)
+        assertEquals(5000L, status.lastSyncUnixMillis)
+        assertEquals(2L, status.syncSequence)
+        assertEquals(3, status.pendingReports)
+        assertEquals(1, status.applications.size)
+        assertEquals("OK", status.applications.single().reason)
     }
     @Test fun failingAndClosedListenersDoNotAffectOtherRegistrations() {
         val listeners = StatusListeners()

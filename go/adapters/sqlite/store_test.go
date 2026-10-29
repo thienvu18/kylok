@@ -4,6 +4,7 @@ package sqlite_test
 import (
 	"context"
 	"database/sql"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -76,6 +77,51 @@ func TestOpenRejectsUnsupportedVersion(t *testing.T) {
 	if store, err := sqlite.Open(context.Background(), path); err == nil {
 		store.Close()
 		t.Fatal("accepted a newer unsupported database version")
+	}
+}
+
+func TestOpenRejectsInvalidPathsAndCancelledContext(t *testing.T) {
+	ctx := context.Background()
+	if _, err := sqlite.Open(ctx, ""); err == nil {
+		t.Fatal("expected error on empty path")
+	}
+	if _, err := sqlite.Open(ctx, ":memory:"); err == nil {
+		t.Fatal("expected error on memory path")
+	}
+	if _, err := sqlite.Open(ctx, "/dev/null/forbidden/state.db"); err == nil {
+		t.Fatal("expected error on uncreatable path")
+	}
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	path := filepath.Join(t.TempDir(), "cancelled.db")
+	if store, err := sqlite.Open(cancelled, path); err == nil {
+		store.Close()
+		t.Fatal("expected error on cancelled context")
+	}
+}
+
+func TestOpenRejectsDirectoryAndCorruptedDatabase(t *testing.T) {
+	ctx := context.Background()
+	if _, err := sqlite.Open(ctx, t.TempDir()); err == nil {
+		t.Fatal("expected error on directory path")
+	}
+	corrupted := filepath.Join(t.TempDir(), "corrupted.db")
+	if err := os.WriteFile(corrupted, []byte("NOT A SQLITE FILE HEADER 1234567890"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if store, err := sqlite.Open(ctx, corrupted); err == nil {
+		store.Close()
+		t.Fatal("expected error on corrupted sqlite file")
+	}
+
+	if _, err := sqlite.Open(ctx, ":memory:"); err == nil {
+		t.Fatal("expected error rejecting in-memory sqlite path")
+	}
+	if _, err := sqlite.Open(ctx, ""); err == nil {
+		t.Fatal("expected error on empty sqlite path")
+	}
+	if _, err := sqlite.Open(ctx, "/dev/null/impossible/path.db"); err == nil {
+		t.Fatal("expected error on uncreatable sqlite path")
 	}
 }
 

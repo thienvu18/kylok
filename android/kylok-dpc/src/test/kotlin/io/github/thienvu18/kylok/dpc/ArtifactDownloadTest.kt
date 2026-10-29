@@ -125,4 +125,88 @@ class ArtifactDownloadTest {
         try { ArtifactDownload.fetch(origin, "credential", "device", op, file) { }; fail("content change accepted") }
         catch (error: InstallRejected) { assertEquals("ARTIFACT_CHANGED", error.reason) }
     }
+
+    @Test fun downloadSizeValidationAndFileCleanup() = fixture { origin, op, bytes, file, server ->
+        // Size = 0 -> APK_SIZE_INVALID
+        val zeroSizeOp = op.toBuilder().setArtifact(op.artifact.toBuilder().setSizeBytes(0)).build()
+        assertThrows(InstallRejected::class.java) {
+            ArtifactDownload.fetch(origin, "credential", "device", zeroSizeOp, file) { }
+        }
+
+        // Size > 64 MiB -> APK_SIZE_INVALID
+        val bigSizeOp = op.toBuilder().setArtifact(op.artifact.toBuilder().setSizeBytes(65L * 1024 * 1024)).build()
+        assertThrows(InstallRejected::class.java) {
+            ArtifactDownload.fetch(origin, "credential", "device", bigSizeOp, file) { }
+        }
+
+        // Existing file longer than expected -> deleted
+        file.writeBytes(ByteArray(bytes.size + 10))
+        server.createContext("/") { exchange ->
+            exchange.responseHeaders.set("ETag", "\"${op.artifact.sha256}\"")
+            exchange.sendResponseHeaders(200, bytes.size.toLong())
+            exchange.responseBody.use { it.write(bytes) }
+        }
+        server.start()
+        ArtifactDownload.fetch(origin, "credential", "device", op, file) { }
+        assertEquals(bytes.size.toLong(), file.length())
+    }
+
+    @Test fun httpErrorCodesAndCustomConnectionFactory() = fixture { origin, op, bytes, file, server ->
+        var responseCode = 401
+        server.createContext("/artifacts/") { exchange ->
+            exchange.sendResponseHeaders(responseCode, -1)
+            exchange.close()
+        }
+        server.start()
+
+        // 401 -> IOException
+        assertThrows(java.io.IOException::class.java) {
+            ArtifactDownload.fetch(origin, "credential", "device", op, file) { }
+        }
+
+        // 500 -> IOException
+        responseCode = 500
+        assertThrows(java.io.IOException::class.java) {
+            ArtifactDownload.fetch(origin, "credential", "device", op, file) { }
+        }
+
+        // Custom connection factory called
+        var factoryCalled = false
+        val connFactory: (java.net.URL) -> java.net.HttpURLConnection = { url ->
+            factoryCalled = true
+            url.openConnection() as java.net.HttpURLConnection
+        }
+        assertThrows(java.io.IOException::class.java) {
+            ArtifactDownload.fetch(origin, "credential", "device", op, file, connectionFactory = connFactory) { }
+        }
+        assertTrue(factoryCalled)
+    }
+
+    @Test fun multiMegabyteDownloadFsyncProgress() {
+        val size = 1_200_000
+        val bytes = ByteArray(size) { (it % 251).toByte() }
+        val digest = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        val origin = "http://127.0.0.1:${server.address.port}"
+        val op = Operation.newBuilder().setId("a".repeat(43)).setLeaseId("b".repeat(48))
+            .setArtifact(Artifact.newBuilder().setSha256(digest).setSizeBytes(size.toLong()))
+            .setDownloadUrl("$origin/artifacts/${"a".repeat(43)}/$digest.apk").build()
+        val dir = Files.createTempDirectory("kylok-large-dl").toFile()
+        val file = File(dir, "large.apk")
+        server.createContext("/artifacts/") { exchange ->
+            exchange.responseHeaders.set("ETag", "\"$digest\"")
+            exchange.sendResponseHeaders(200, size.toLong())
+            exchange.responseBody.use { it.write(bytes) }
+        }
+        server.start()
+        try {
+            val progressReports = mutableListOf<Long>()
+            ArtifactDownload.fetch(origin, "credential", "device", op, file) { progressReports.add(it) }
+            assertArrayEquals(bytes, file.readBytes())
+            assertTrue(progressReports.size >= 2) // at 1 MiB checkpoint and at completion
+        } finally {
+            server.stop(0)
+            dir.deleteRecursively()
+        }
+    }
 }

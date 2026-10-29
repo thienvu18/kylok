@@ -1,19 +1,23 @@
 # Lộ trình
 
-Mã nguồn hiện tại gồm N1–N4: tích hợp host, PostgreSQL, thay đổi bền vững, cấu hình host Android và cấu hình ứng dụng có kiểu. Luồng app mẫu có bằng chứng trên một POCO Pad X1; kiểm tra vật lý `HostOptions` vẫn còn mở. N5–N6 có triển khai phần mềm và kiểm tra tự động; kiểm định thiết bị thật vẫn mở. N7 là phần việc tiếp theo. Xem [kiểm định thiết bị hiện tại](compatibility.html).
+## SDK hiện tại
 
-| Cột mốc | Kết quả dự kiến |
-| --- | --- |
-| N1 | API đọc theo phạm vi, liên kết đăng ký và hợp đồng tích hợp/vòng đời ứng dụng chủ. |
-| N2 | PostgreSQL tùy chọn, kiểm tra hợp đồng adapter và khôi phục khi nhiều instance cùng chạy. |
-| N3 | Luồng thay đổi lưu cùng transaction, có thể đọc lại và đồng bộ dữ liệu ứng dụng chủ tin cậy. |
-| N4 | Cấu hình Android sớm và cấu hình ứng dụng được quản lý với kiểu dữ liệu rõ ràng; app mẫu đã nhận, áp dụng và khôi phục cấu hình trên một bản phát triển chạy trên POCO. Kiểm tra phần cứng riêng cho `HostOptions` vẫn còn mở. |
-| N5 | Phần mềm có nhóm theo scope, đích cố định, gán hàng loạt có checkpoint, lịch/hủy triển khai và lệnh reboot/khóa bảo mật; cần kiểm định thiết bị thật. |
-| N6 | Phần mềm có Wi-Fi/CA riêng, secret reference theo scope, xác minh đường khôi phục và xoay/gỡ cấu hình theo journal; cần kiểm định thiết bị thật. |
-| N7 | Danh sách thiết bị/firmware hỗ trợ, phạm vi tương thích, bằng chứng quy mô và kiểm định stable. |
+Kylok cung cấp thư viện Go và Android cho đăng ký theo scope, phân phối APK đã ký, policy có readback, cấu hình ứng dụng được quản lý, thao tác fleet/lệnh bền vững, PostgreSQL tùy chọn, change feed và chính sách Wi-Fi/CA riêng. Các năng lực cho thiết bị chuyên dụng đã có trong mã nguồn gồm launcher HOME bền vững (`KylokHomeActivity`), phục hồi sau boot và crash (`LauncherRecovery`), đồng bộ nền WorkManager (`EnrollmentWorker`), màn hình báo cáo tuân thủ trên thiết bị (`PolicyComplianceActivity`), và cài đặt APK qua `PackageInstaller`. Chính sách được thực thi trực tiếp ở tầng OS qua API nền tảng chuẩn của Android. Ứng dụng chủ quản lý danh tính, phân quyền, giao diện, vòng đời và nghiệp vụ.
 
-Ứng dụng chủ quản lý người dùng, tài sản, phân quyền, workflow và giao diện. Kylok cung cấp ID phạm vi/thiết bị trung lập cùng ngữ nghĩa quản lý Android. PostgreSQL và luồng thay đổi tin cậy đã có trong mã nguồn hiện tại; callback vẫn là best-effort.
+## Công việc tiếp theo
 
-Lần kiểm tra thiết bị ngày 2026-10-27 cũng phát hiện lỗi chặn gỡ ứng dụng. Cần khắc phục và kiểm tra lại trước khi đánh giá stable; đăng ký khi chặn WAN, kiosk và quyền runtime vẫn còn mở. [Lộ trình repository](https://github.com/thienvu18/kylok/blob/main/ROADMAP.md) nêu điều kiện hoàn tất; [kế hoạch triển khai](https://github.com/thienvu18/kylok/blob/main/docs/implementation-plan.md) nêu interface, thứ tự và kiểm tra chấp nhận. [Checklist thiết bị](https://github.com/thienvu18/kylok/blob/main/docs/provisioning.md) ghi các bước còn lại.
+Giao diện phần mềm và bộ kiểm thử tự động cho các mốc N7 đến N12 đã được hoàn thiện trong mã nguồn hiện tại. Điều kiện nghiệm thu đòi hỏi kiểm định thực tế trên thiết bị và đáp ứng các cổng phát hành stable.
 
-N5 có triển khai phần mềm: nhóm theo scope, danh sách đích cố định, fan-out có checkpoint, lịch/hủy triển khai và lệnh reboot/khóa bảo mật có kết quả chưa xác định. Các luồng có kiểm tra tự động; kiểm định thiết bị thật vẫn mở. N6 có quản lý Wi-Fi/CA riêng, đường khôi phục độc lập và kiểm tra kết nối xác thực; các hiệu ứng hệ điều hành cần kiểm định thiết bị thật.
+| Thứ tự | Năng lực | Trạng thái |
+| --- | --- | --- |
+| N7 | HOME launcher bền vững, phục hồi sau boot và khởi chạy lại ứng dụng khi bị dừng. | Đã có trong mã nguồn; chờ kiểm định boot/phục hồi thực tế. |
+| N8 | Chế độ bảo trì và kiểm tra tuân thủ trên thiết bị có xác thực. | Đã có trong mã nguồn; chờ kiểm định offline thực tế. |
+| N9 | Hợp đồng provisioning kết hợp bootstrap Device Owner và metadata liên kết host. | Đã có trong mã nguồn; chờ kiểm định quét một lần thực tế. |
+| N10 | Kiosk/Lock Task và hạn chế Wi-Fi thực thi ở tầng OS. | Đã có trong mã nguồn; chờ kiểm định thực thi trên OEM. |
+| N11 | Khôi phục đồng bộ khi mạng quản lý kết nối lại và hoãn cập nhật an toàn. | Đã có trong mã nguồn; chờ kiểm định ngắt/nối mạng thực tế. |
+| N12 | Messaging nội bộ có interface trung lập và lệnh thiết bị một lần. | Lệnh và hợp đồng đã có trong mã nguồn; chờ đánh giá trạng thái chờ. |
+| N13 | Kiểm định hỗ trợ thiết bị/firmware/mạng và phát hành stable. | Chờ hoàn tất các cổng kiểm định stable. |
+
+Khi thiết bị không có route mạng, máy chủ không thể gửi push tới đó. Sau khi kết nối lại, sự kiện trong hàng đợi có giới hạn và đối soát trạng thái bền vững phải phục hồi an toàn. Tốc độ nhận nền còn phụ thuộc Android và firmware OEM.
+
+Xem [thứ tự triển khai](https://github.com/thienvu18/kylok/blob/main/docs/implementation-plan.md), [thiết kế messaging](https://github.com/thienvu18/kylok/blob/main/docs/local-messaging.md) và [tương thích hiện tại](compatibility.html).

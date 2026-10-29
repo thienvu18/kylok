@@ -61,6 +61,13 @@ func inspect(t testing.TB, manifest string, application bool) (*provisioning.APK
 	if _, err = entry.Write([]byte(manifest)); err != nil {
 		t.Fatal(err)
 	}
+	libEntry, err := writer.Create("lib/arm64-v8a/libkylok.so")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = libEntry.Write([]byte("elf")); err != nil {
+		t.Fatal(err)
+	}
 	if err = writer.Close(); err != nil {
 		t.Fatal(err)
 	}

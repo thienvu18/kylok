@@ -1,6 +1,6 @@
 # Physical device test runbook
 
-Run this procedure for **each model, firmware and transport configuration you intend to support**. Start with the POCO Pad X1 / Android 15 and server `192.168.101.5`. A pass on that tablet does not certify API 33–37 or another firmware. Current source includes N1–N4. The POCO run is summarized in the [device report](validation/2026-10-27-poco-pad-x1.md); it covers the source build and online LAN conditions recorded there.
+Run this procedure for **each model, firmware and transport configuration you intend to support**. Use a resettable lab device and record its exact model, build, SDK pair and network route. Android API/build support does not certify a device or OEM firmware; qualification is limited to the configurations with recorded evidence.
 
 Run the commands in order and stop on any error. Use `PASS`, `FAIL`, `NOT RUN` or `BLOCKED`, with actual observations. Never convert an unavailable fixture or an OEM-denied action into a pass. The [result template](validation/physical-device-template.md) covers the complete checklist; [compatibility](compatibility.md) contains recorded outcomes only. Run against a resettable lab tablet. Do not replace an existing deployment's database or keys.
 
@@ -12,14 +12,14 @@ Keep internet available on the computer while building. From the repository root
 export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/build-tools/37.0.0:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
-export RUN="$HOME/.local/share/kylok-physical/poco-http-$(date +%Y%m%d-%H%M%S)"
+export RUN="$HOME/.local/share/kylok-physical/device-http-$(date +%Y%m%d-%H%M%S)"
 umask 077
 mkdir -p "$(dirname "$RUN")"
 mkdir "$RUN"
 KYLOK_HOST_VERSION_CODE=1 ./scripts/prepare-local-server.sh 192.168.101.5 http
 . "$HOME/.local/share/kylok-local-server/192.168.101.5/http.env"
 export KYLOK_DATA="$RUN/data"
-export KYLOK_SCOPE=poco-physical
+export KYLOK_SCOPE=physical-lab
 export DPC_PACKAGE=io.github.thienvu18.kylok.example
 export TEST_PACKAGE=dev.kylok.configuration
 mkdir "$KYLOK_DATA"
@@ -125,7 +125,7 @@ snapshot() {
 printf '{}\n' > "$RUN/release.json"
 ```
 
-Open `http://127.0.0.1:8081`. Read the administrator token locally from `"$KYLOK_DATA/console-token"`; do not paste it into chat, screenshots or public reports. Select scope `poco-physical`. Allow inbound API traffic through the computer firewall, and disable Wi-Fi client isolation. The console remains on the computer; tablets use port 8080.
+Open `http://127.0.0.1:8081`. Read the administrator token locally from `"$KYLOK_DATA/console-token"`; do not paste it into chat, screenshots or public reports. Select a private test scope for the run. Allow inbound API traffic through the computer firewall, and disable Wi-Fi client isolation when using Wi-Fi. The console remains on the computer; tablets use port 8080.
 
 ## 4. Provision with WAN blocked
 
@@ -239,7 +239,7 @@ Use the console's policy editor, or JSON files plus `kylok set-policy`. These ar
 | `permissions` | GRANTED → DENIED → DEFAULT for a declared runtime permission | Verify actual permission/use, plus per-rule state. DEFAULT releases policy and does not promise revocation. |
 | Invalid permission | An undeclared/unknown runtime permission on an assigned required app | Truthful failed/unsupported/pending result, no fabricated grant. |
 
-Recorded POCO/API 35 outcomes: camera and screenshot blocking/restoration and `no_modify_accounts` were observed; `no_debugging_features` hid Developer options and USB debugging remained off after release. `no_uninstall_apps` failed because Android still removed the sample app while the rule reported `APPLIED`. Secure timeout could not be checked without a PIN/password/pattern; no Add user action existed. Kiosk and runtime permissions were not run. See the [sanitized run report](validation/2026-10-27-poco-pad-x1.md); these results do not qualify other firmware.
+Record actual behavior for each control and its release separately from the SDK's reported state. A setter return or `APPLIED` readback does not prove that the user-facing action is blocked. Secure-timeout tests require a configured screen lock; permission tests require an app that declares the permission. Mark unavailable prerequisites `BLOCKED` or `NOT RUN` and attach sanitized evidence to the candidate's device record.
 
 The configuration sample intentionally requests no runtime permissions. A **separate signed test app that declares the permission** is required for positive permission tests; until supplied/tested, record those rows `NOT RUN`. A rejected sensor grant on this firmware must be recorded as such, not coerced through adb. See [policy semantics](policies.md).
 
@@ -303,7 +303,7 @@ Use these rows to record the rest of the physical checklist honestly. They requi
 | HTTPS API with private CA | Separate fresh reset, fresh server data and enrollment; build the customCA DPC and use HTTP bootstrap plus HTTPS API as described below. |
 | DNS origin | Separate enrollment with a real LAN-resolvable hostname; verify that resolution and, for HTTPS, matching certificate trust. Do not invent a domain if the LAN has none. |
 | Untrusted HTTPS | Separate disposable attempt with a certificate the relevant client does not trust; connection/setup fails without HTTP downgrade. Setup Wizard and installed-app trust are separate. |
-| API 37 LAN permission | Requires a physical API 37 target. The POCO/API 35 cannot qualify this path. |
+| API 37 LAN permission | Requires a physical API 37 target; other API levels cannot qualify this path. |
 
 For mixed private-CA enrollment, run `prepare-local-server.sh 192.168.101.5 https`, load its environment into a **new run**, and use fresh `KYLOK_DATA`. Serve the customCA APK with `-public-url https://192.168.101.5:8443 -listen 192.168.101.5:8443 -tls-cert "$KYLOK_TLS_CERT" -tls-key "$KYLOK_TLS_KEY" -bootstrap-url http://192.168.101.5:8080 -bootstrap-listen 192.168.101.5:8080`. Issue the QR with that same `-bootstrap-url`. Keep HTTP bootstrap while the installed app uses verified private-CA HTTPS. Do not reuse the already enrolled HTTP device or assume redrawing its QR changes its endpoint. See [local HTTPS commands](local-server.md#https-and-custom-ca).
 
@@ -311,7 +311,7 @@ The standard CLI uses SQLite. PostgreSQL/change-feed host tests are automated se
 
 ## Fleet and network qualification
 
-Use paired SDKs from the candidate source and fresh development server data. Do not attribute the recorded POCO build to these APIs. Keep the signing identity and record the candidate APK/version. The [CLI](local-server.md#fleet-commands-and-network-lifecycle) and [fleet](fleet-operations.md)/[network](managed-network.md) contracts define submission and observed outcomes.
+Use paired SDKs from the candidate source and fresh development server data. Keep the signing identity and record the candidate APK/version. The [CLI](local-server.md#fleet-commands-and-network-lifecycle) and [fleet](fleet-operations.md)/[network](managed-network.md) contracts define submission and observed outcomes.
 
 | Case | Manual action and required evidence |
 | --- | --- |
@@ -343,4 +343,4 @@ Request sync and reboot/retry. Expect rejected authenticated activity, no new id
 
 For each case fill the template with start/end times (include timezone), exact action, expected vs actual, IDs of relevant operations/revisions, and evidence filenames. Screenshot/photo filenames should be case IDs, for example `CFG-01-title-button.png`. Use sanitized screenshots and reviewed log excerpts; never share raw QR images, tokens, credentials, keystores, passwords or complete runtime databases.
 
-Keep originals in the private run directory. Copy only the **sanitized completed report** and safe evidence into `docs/validation/`, then update [current validation](compatibility.md). The POCO run records online enrollment, app/configuration behavior, background sync, server/LAN/reboot recovery and selected policy checks; uninstall prevention failed, and WAN-blocked setup and several controls remain blocked or untested. Keep the corresponding roadmap/readiness gates open until exact build evidence closes them. A firmware update or source revision change needs a separate record.
+Keep originals in the private run directory. Copy only the **sanitized completed report** and safe evidence into `docs/validation/`, then update [current validation](compatibility.md). Keep qualification gates open until exact build evidence closes them. A firmware update or source revision change needs a separate record.

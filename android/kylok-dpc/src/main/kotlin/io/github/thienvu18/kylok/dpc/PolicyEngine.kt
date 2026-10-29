@@ -6,6 +6,8 @@ import org.json.JSONObject
 import java.io.IOException
 
 internal enum class PolicyKind { CAMERA, SCREEN_CAPTURE, MAXIMUM_TIME_TO_LOCK, RESTRICTION, PERMISSION, MANAGED_CONFIGURATION, LOCK_TASK }
+/** Restriction identifier for blocking application uninstallation at the OS level. */
+internal const val RESTRICTION_NO_UNINSTALL_APPS = "no_uninstall_apps"
 internal data class PolicySetting(val id: String, val kind: PolicyKind, val value: String, val target: String = "", val name: String = "") {
     /** Serialize a policy setting for durable baseline restoration. */
     fun json() = JSONObject().put("id", id).put("kind", kind.name).put("value", value).put("target", target).put("name", name)
@@ -37,6 +39,10 @@ internal interface PolicyPlatform {
     fun observe(setting: PolicySetting): String
     /** Apply one previously journaled setting without claiming observed compliance. */
     fun apply(setting: PolicySetting)
+    /** Set whether package uninstallation is blocked at the OS PackageManager level. */
+    fun setUninstallBlocked(packageName: String, blocked: Boolean) = Unit
+    /** Observe whether package uninstallation is currently blocked at the OS PackageManager level. */
+    fun isUninstallBlocked(packageName: String): Boolean = true
 }
 internal class PolicyUnsupported(val reason: String) : Exception(reason)
 internal class PolicyPending(val reason: String) : Exception(reason)
@@ -148,15 +154,34 @@ internal class PolicyEngine(private val storage: StateAccess, private val platfo
             results += cleanup ?: result("cleanup", ComplianceState.COMPLIANCE_STATE_APPLIED, observed = "complete")
             val apps = snapshot.desiredApplicationsList.associateBy { it.artifact.packageName }
             val ready = mutableMapOf<String, Boolean>()
+            val uninstallRestricted = p.restrictionsList.any { it.name == RESTRICTION_NO_UNINSTALL_APPS && it.enabled }
+            val previouslyRequired = state.optJSONArray("required_blocked_packages")?.let { arr ->
+                (0 until arr.length()).map { arr.getString(it) }.toSet()
+            } ?: emptySet()
+            val currentRequired = p.requiredPackagesList.toSet()
+            if (!uninstallRestricted) {
+                (previouslyRequired - currentRequired).forEach { removed ->
+                    platform.setUninstallBlocked(removed, false)
+                }
+            }
+            val currentlyBlocked = mutableListOf<String>()
             for (name in p.requiredPackagesList) {
                 val want = apps[name]?.artifact
                 val actual = platform.installed(name)
                 val matches = want != null && actual != null && actual.packageName == name && actual.versionCode == want.versionCode &&
                     actual.signingCertificatesList.sorted() == want.signingCertificatesList.sorted()
-                ready[name] = matches
-                results += result("required:$name", if (matches) ComplianceState.COMPLIANCE_STATE_APPLIED else ComplianceState.COMPLIANCE_STATE_PENDING,
-                    if (matches) "" else if (want == null) "ASSIGNMENT_MISSING" else "REQUIRED_APP_PENDING", actual?.let(::applicationValue) ?: "absent")
+                if (matches) {
+                    platform.setUninstallBlocked(name, true)
+                    currentlyBlocked += name
+                }
+                val blocked = if (matches) platform.isUninstallBlocked(name) else false
+                val effective = matches && blocked
+                ready[name] = effective
+                results += result("required:$name", if (effective) ComplianceState.COMPLIANCE_STATE_APPLIED else ComplianceState.COMPLIANCE_STATE_PENDING,
+                    if (effective) "" else if (want == null) "ASSIGNMENT_MISSING" else if (!matches) "REQUIRED_APP_PENDING" else "UNINSTALL_BLOCK_PENDING",
+                    actual?.let(::applicationValue) ?: "absent")
             }
+            persist { it.put("required_blocked_packages", org.json.JSONArray(currentlyBlocked)) }
             for (setting in rules) {
                 active()
                 try {

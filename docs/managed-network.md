@@ -1,6 +1,8 @@
-# Managed Wi-Fi and private CAs
+# Managed networks and private CAs
 
-Kylok manages saved Wi-Fi profiles and private CA certificates through Device Owner APIs. The software has Go/Android tests; physical IP/domain, HTTP/HTTPS, credentials/certificate rotation and recovery qualification remain open. Bootstrap APK trust stays separate from installed-app trust.
+Current network policy optionally manages saved Wi-Fi profiles and private CA certificates through Device Owner APIs. These policies are independent from the host's network deployment. Physical network effects and recovery qualification remain open. Bootstrap APK trust stays separate from installed-app trust.
+
+Wi-Fi lockdown is planned as two independent policy modes: restrict user configuration/toggles and disable the radio. A host can select either mode alone or both in the same policy. Android exposes distinct controls for each behavior, so the DPC must report and observe them separately. Before radio disable, the agent must preserve a safe way to restore management access if connectivity is lost.
 
 ## Host contract
 

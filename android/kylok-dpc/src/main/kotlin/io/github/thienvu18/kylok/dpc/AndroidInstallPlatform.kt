@@ -17,6 +17,8 @@ import java.security.MessageDigest
 internal class AndroidInstallPlatform(private val context: Context, private val storage: StateAccess) : InstallPlatform {
     private val pm = context.packageManager
     private val installer = pm.packageInstaller
+    private val storageManager = context.getSystemService(android.os.storage.StorageManager::class.java) ?: context.getSystemService(Context.STORAGE_SERVICE) as? android.os.storage.StorageManager
+    private val activityManager = context.getSystemService(android.app.ActivityManager::class.java) ?: context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
     private val staging = File(context.noBackupFilesDir, "kylok-apks").apply { mkdirs() }
     /** Choose an operation-specific APK inside the private no-backup staging directory. */
     private fun file(op: Operation) = File(staging, "${op.id}.apk")
@@ -31,16 +33,17 @@ internal class AndroidInstallPlatform(private val context: Context, private val 
 
     /** Read installed version and current signers or report package absence. */
     override fun installed(packageName: String): InstalledApplication? {
-        val info = try { pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong())) }
+        val info: PackageInfo? = try { pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong())) }
         catch (absent: PackageManager.NameNotFoundException) { return null }
-        return InstalledApplication.newBuilder().setPackageName(info.packageName).setVersionCode(info.longVersionCode)
+        if (info == null) return null
+        return InstalledApplication.newBuilder().setPackageName(info.packageName ?: "").setVersionCode(info.longVersionCode)
             .addAllSigningCertificates(certificates(info)).build()
     }
 
     /** Reserve staging/session headroom before downloading against the enrolled origin. */
     override fun download(op: Operation, progress: (Long) -> Unit) {
         val state = storage.read()
-        val manager = context.getSystemService(android.os.storage.StorageManager::class.java)
+        val manager = storageManager ?: context.getSystemService(android.os.storage.StorageManager::class.java)
         val available = manager.getAllocatableBytes(manager.getUuidForPath(staging))
         // Reserve remaining download bytes, a full installer copy, and 8 MiB for session/metadata overhead.
         if (available < maxOf(0L, op.artifact.sizeBytes - file(op).length()) + op.artifact.sizeBytes + 8 * 1024 * 1024) throw InstallRejected("INSUFFICIENT_STORAGE")
@@ -62,7 +65,7 @@ internal class AndroidInstallPlatform(private val context: Context, private val 
         info.reqFeatures?.filter { it.flags and android.content.pm.FeatureInfo.FLAG_REQUIRED != 0 }?.forEach {
             if (it.name != null && !pm.hasSystemFeature(it.name, it.version)) throw InstallRejected("MISSING_REQUIRED_FEATURE")
             if (it.reqGlEsVersion != 0) {
-                val activity = context.getSystemService(android.app.ActivityManager::class.java)
+                val activity = activityManager ?: context.getSystemService(android.app.ActivityManager::class.java)
                 if (activity.deviceConfigurationInfo.reqGlEsVersion < it.reqGlEsVersion) throw InstallRejected("INCOMPATIBLE_OPENGL")
             }
         }
@@ -104,8 +107,12 @@ internal class AndroidInstallPlatform(private val context: Context, private val 
     override fun sessionSealed(id: Int) = installer.getSessionInfo(id)?.isSealed == true
     /** Bind the OS result receiver to the operation/session and commit the existing session. */
     override fun commit(id: Int, operationID: String) {
-        val intent = Intent(context, InstallResultReceiver::class.java).setAction("io.github.thienvu18.kylok.INSTALL_RESULT")
-            .setData(Uri.parse("kylok://install/$operationID/$id")).putExtra("operation_id", operationID).putExtra("session_id", id)
+        val intent = Intent(context, InstallResultReceiver::class.java).apply {
+            action = "io.github.thienvu18.kylok.INSTALL_RESULT"
+            data = Uri.parse("kylok://install/$operationID/$id")
+            putExtra("operation_id", operationID)
+            putExtra("session_id", id)
+        }
         // PackageInstaller must fill the result extras; target 35+ rejects immutable status receivers.
         val sender = PendingIntent.getBroadcast(context, id, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE).intentSender
         installer.openSession(id).use { it.commit(sender) }

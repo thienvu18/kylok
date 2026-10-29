@@ -37,6 +37,16 @@ android {
         buildConfigField("int", "PROTOCOL_VERSION", "1")
     }
     buildFeatures { buildConfig = true }
+    buildTypes {
+        debug {
+            enableUnitTestCoverage = true
+        }
+    }
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
+        }
+    }
     publishing { singleVariant("release") { withSourcesJar() } }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

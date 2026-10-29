@@ -1,4 +1,4 @@
-.PHONY: generate schema check test-go test-postgres build-go test-android build-android interop test-host-update distribution test-consumers test-release test-release-gates test-console docs docs-audit verify
+.PHONY: generate schema check test-go test-postgres build-go test-android build-android interop test-host-update distribution test-consumers test-release test-release-gates test-console docs docs-audit coverage-go coverage-android coverage verify
 
 generate:
 	./scripts/generate.sh
@@ -58,4 +58,12 @@ docs: docs-audit
 	./android/gradlew -p android :kylok-dpc:dokkaGeneratePublicationHtml
 	.tools/docs-venv/bin/python scripts/docs.py build
 
-verify: generate schema check docs-audit test-go test-postgres build-go test-android build-android interop test-host-update test-console test-consumers test-release
+coverage-go:
+	python3 scripts/check-coverage-go.py
+
+coverage-android:
+	python3 scripts/check-coverage-android.py
+
+coverage: coverage-go coverage-android
+
+verify: generate schema check docs-audit test-go test-postgres build-go test-android build-android coverage interop test-host-update test-console test-consumers test-release

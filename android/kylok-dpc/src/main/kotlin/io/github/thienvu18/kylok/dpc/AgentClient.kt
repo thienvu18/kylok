@@ -17,10 +17,14 @@ internal fun originAuthority(host: String, port: Int): String {
     return if (':' in bare) "[$bare]:$port" else "$bare:$port"
 }
 
-internal class AgentClient(private val channel: ManagedChannel) : AutoCloseable {
+internal open class AgentClient(private val channel: ManagedChannel?) : AutoCloseable {
     companion object {
+        /** Pluggable client factory for isolated testing without network sockets. */
+        internal var clientFactory: ((String, javax.net.ssl.SSLSocketFactory?, android.net.Network?) -> AgentClient)? = null
+
         /** Validate an origin and select its declared transport without TLS downgrade. */
         fun connect(origin: String, trust: javax.net.ssl.SSLSocketFactory? = null, network: android.net.Network? = null): AgentClient {
+            clientFactory?.let { return it(origin, trust, network) }
             val uri = URI(origin)
             require(uri.scheme in setOf("http", "https") && !uri.host.isNullOrEmpty() && uri.userInfo == null &&
                 uri.rawPath.isNullOrEmpty() && uri.rawQuery == null && uri.rawFragment == null)
@@ -42,21 +46,21 @@ internal class AgentClient(private val channel: ManagedChannel) : AutoCloseable 
         }
     }
     /** Send the attempt-bound public key and inventory with a bounded RPC deadline. */
-    fun enroll(token: String, attempt: String, publicKey: ByteArray, inventory: Inventory): EnrollResponse =
-        AgentServiceGrpc.newBlockingStub(channel).withDeadlineAfter(20, TimeUnit.SECONDS).enroll(
+    open fun enroll(token: String, attempt: String, publicKey: ByteArray, inventory: Inventory): EnrollResponse =
+        AgentServiceGrpc.newBlockingStub(channel!!).withDeadlineAfter(20, TimeUnit.SECONDS).enroll(
             EnrollRequest.newBuilder().setToken(token).setAttemptId(attempt)
                 .setPublicKey(ByteString.copyFrom(publicKey)).setInventory(inventory)
                 .setProtocolVersion(BuildConfig.PROTOCOL_VERSION).build())
 
     /** Authenticate one persisted sync request using the device credential. */
-    fun sync(request: SyncRequest, credential: String): SyncResponse {
+    open fun sync(request: SyncRequest, credential: String): SyncResponse {
         val headers = Metadata().apply {
             put(Metadata.Key.of("authorization", Metadata.ASCII_STRING_MARSHALLER), "Bearer $credential")
         }
-        return AgentServiceGrpc.newBlockingStub(channel)
+        return AgentServiceGrpc.newBlockingStub(channel!!)
             .withInterceptors(io.grpc.stub.MetadataUtils.newAttachHeadersInterceptor(headers))
             .withDeadlineAfter(20, TimeUnit.SECONDS).sync(request)
     }
     /** Release the gRPC channel when the bounded worker exchange finishes. */
-    override fun close() { channel.shutdownNow() }
+    override fun close() { channel?.shutdownNow() }
 }

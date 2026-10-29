@@ -63,6 +63,27 @@ func store(t *testing.T, db *sql.DB, name string, initialize bool) *postgres.Sto
 	return result
 }
 
+func TestOpenValidation(t *testing.T) {
+	ctx := context.Background()
+	if _, err := postgres.Open(ctx, nil, postgres.Options{}); err == nil {
+		t.Fatal("expected error on nil db")
+	}
+	if _, err := postgres.Open(ctx, nil, postgres.Options{Schema: "INVALID-SCHEMA!"}); err == nil {
+		t.Fatal("expected error on invalid schema name")
+	}
+	longSchema := strings.Repeat("a", 64)
+	if _, err := postgres.Open(ctx, nil, postgres.Options{Schema: longSchema}); err == nil {
+		t.Fatal("expected error on schema name > 63 chars")
+	}
+	db, err := sql.Open("pgx", "postgres://invalid:invalid@127.0.0.1:1/nonexistent")
+	if err == nil {
+		db.Close()
+		if _, err := postgres.Open(ctx, db, postgres.Options{}); err == nil {
+			t.Fatal("expected error on closed db")
+		}
+	}
+}
+
 func TestRealBackendConformance(t *testing.T) {
 	db := pool(t)
 	factory := func(t *testing.T) ports.StateStore { return store(t, db, schema(t, db), true) }
@@ -346,5 +367,20 @@ func TestRuntimePrincipalNeedsNoSchemaCreationPrivileges(t *testing.T) {
 	}
 	if err = runtime.PingContext(ctx); err != nil {
 		t.Fatal("adapter closed runtime pool", err)
+	}
+}
+
+func TestOpenDefaultSchemaValidation(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("pgx", "postgres://localhost/dummy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	// Open with empty schema defaults to "kylok" and exercises the defaulting branch
+	_, _ = postgres.Open(ctx, db, postgres.Options{Schema: ""})
+	// Open with invalid schema identifier returns error
+	if _, err = postgres.Open(ctx, db, postgres.Options{Schema: "invalid name with spaces"}); err == nil {
+		t.Fatal("expected error on invalid postgres schema name")
 	}
 }

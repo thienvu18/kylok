@@ -11,7 +11,7 @@ Chọn phiên bản hiện có tại [GitHub Releases](https://github.com/thienv
 Thêm SDK Go vào module của máy chủ:
 
 ```sh
-go get github.com/thienvu18/kylok/go@v0.1.0-dev.40316176224
+go get github.com/thienvu18/kylok/go@v0.1.0-dev.40449063797
 ```
 
 Kiểm tra APK host đã ký, khởi tạo SDK rồi gắn handler vào máy chủ:
@@ -41,7 +41,7 @@ repositories {
     mavenCentral()
 }
 dependencies {
-    implementation("io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev.40316176224")
+    implementation("io.github.thienvu18.kylok:kylok-dpc:0.1.0-dev.40449063797")
 }
 ```
 

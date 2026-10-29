@@ -30,18 +30,22 @@ KYLOK_REMOTE_SDK=all ./scripts/test-consumers.sh
 
 This builds independent consumers from remotely resolved Go/Maven artifacts and checks their bytes against the distribution. It needs no registry credentials. Registry metadata availability, an independent consumer build and physical execution are distinct checks; record each separately in [current validation](compatibility.md).
 
-## Integration checks and future suites
+## Feature contracts and future qualification
 
-- **N1:** consumer-owned ports, domain/error mapping, scope/cursor rules, correlation retry and lifecycle/handler integration.
-- **N2:** existing provider conformance plus real PostgreSQL multi-instance races, transaction rollback and restart/crash recovery. Simulated SQL tests are insufficient.
-- **N3:** transaction-bound changes, cursor ordering/expiry, resnapshot consistency and replay after missed callbacks.
-- **N4:** Android initialization races and typed configuration round trips. The independent app's physical receipt, visible application, restart persistence and release passed on one POCO Pad X1 using current development source; separate physical `HostOptions` coverage remains open.
-- **N5:** shared provider tests cover frozen membership, bounded partial results, concurrent workers, schedules, cancellation, token/report binding and uncertain deadlines; public facade tests cover restart, scope/cursors and sanitized snapshots. Android tests inject write/process/effect faults and require boot/keyguard observations. Physical scheduled installation, reboot and secure lock remain open.
-- **N6:** shared provider tests bind secret references, desired/report revisions and rollback with command reports. Android fault tests cover credential changes, interrupted creation/cleanup, fallback, CA overlap/release/expiry and unmanaged resource preservation. Real TLS tests enforce hostname validation, host baseline trust and removed-root distrust. HTTP/HTTPS Go↔Kotlin fixtures resolve a scoped secret, call authenticated probes and apply/release a modeled network. Wi-Fi/CA OS effects and IP/domain recovery still need physical qualification.
-- **N7:** declared compatibility pairs, scale benchmarks and the complete stable candidate matrix.
+Regression tests cover current enrollment/scope, SQLite/PostgreSQL adapters, durable changes/projections, APK integrity/install checkpoints, policy/configuration, fleet fan-out, deadlines/cancellation, commands, managed network secrets, CA/TLS behavior and HTTP/HTTPS interoperability. These tests protect reusable SDK contracts and remain part of CI.
 
-N1–N4 software checks are implemented; selected N4 app behavior and policies have one-device evidence, while broader physical qualification remains manual. N5–N6 software suites are implemented; their physical qualification and N7 remain open; do not add passing placeholders. Every adapter must preserve the same authentication, scope, atomicity, integrity and idempotency checks.
+Future qualification adds:
 
-## Physical evidence
+- **N7:** HOME ownership, boot receiver behavior, launcher recovery after foreground-app and agent process death, offline restart and app replacement.
+- **N8:** Technician authorization, serverless recovery actions, secure exit/return to kiosk and interrupted maintenance.
+- **N9:** One-scan DPC bootstrap, one-time credential consumption, host correlation binding, replay and lost-response recovery.
+- **N10:** Lock Task and launcher observation, Wi-Fi configuration/toggle restrictions, separate radio disable, restoration and safe management recovery.
+- **N11:** Management-network loss/return, sync recovery, offline data retention, busy/defer decisions, update interruptions and safe resume.
+- **N12:** Scoped broker identities/ACLs, message expiry and queue bounds, duplicate delivery, durable acknowledgement, app IPC authorization, Doze/process death and reconnect on target hardware.
+- **N13:** Declared device/firmware/network matrix, measured fleet scale and stable release evidence.
 
-Maintainers execute [the device checklist](provisioning.md), beginning with WAN-blocked provisioning and install/update/recovery/policy checks. Record source/package/APK identities, model/API/firmware, transport, network conditions, expected/observed behavior and sanitized logs. Current POCO evidence covers online enrollment, signed app install/update, managed configuration, background sync, LAN/server/reboot recovery and selected policies; it also exposes failed uninstall prevention. WAN-isolated setup and several device controls remain blocked or untested. Unit tests, installer metadata or a successful policy setter cannot close a physical gate. See the [device report](validation/2026-10-27-poco-pad-x1.md).
+A passing unit/transport test establishes its software contract only. It does not establish Android OEM enforcement, background delivery timing or supported hardware. Keep those results tied to exact device and network evidence.
+
+## Physical qualification
+
+For every supported candidate, follow the [device checklist](provisioning.md). Record source/package/APK identities, model/API/firmware, adapter and transport, network conditions, expected and observed behavior, and sanitized logs. Keep dated device records in [compatibility](compatibility.md); do not turn one device result into a general support claim. WAN-isolated provisioning, kiosk/launcher behavior, scheduled installation, device commands and managed-network effects require separate physical qualification.

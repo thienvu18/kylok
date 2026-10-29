@@ -1,17 +1,23 @@
 # Roadmap
 
-Current source includes N1–N4: host integration, PostgreSQL, durable changes, Android host configuration and typed managed app configuration. The sample app path has device evidence on one POCO Pad X1; physical `HostOptions` coverage remains open. N5 software adds groups, bounded fleet work, deployment windows and one-shot commands with automated checks; physical qualification is open. N6 software adds managed Wi-Fi/private CAs with automated recovery/trust checks; physical qualification is open. N7 is planned. See [current device validation](compatibility.html).
+## Current SDK
 
-| Milestone | Outcome |
-| --- | --- |
-| N1 | Scoped public reads, enrollment correlation and host lifecycle/integration contracts. |
-| N2 | Optional PostgreSQL with adapter conformance and concurrent-instance recovery. |
-| N3 | Transaction-bound replayable changes and reliable host projections. |
-| N4 | Early Android host configuration and typed managed app configuration; sample app receipt/application/release passed on one POCO development build. Separate `HostOptions` hardware coverage remains open. |
-| N5 | Software implemented: frozen groups, bounded bulk assignment, absolute windows, cancellation and durable reboot/secure-lock commands. Physical qualification remains open. |
-| N6 | Software implemented: managed Wi-Fi/private CAs, immutable scoped secret references, verified recovery, staged rotation/release and ownership safeguards. Physical qualification remains open. |
-| N7 | Supported device/firmware matrix, compatibility window, scale evidence and stable release qualification. |
+Kylok provides Go and Android libraries for scoped enrollment, signed APK delivery, observed policies, managed app configuration, durable fleet assignments and commands, optional PostgreSQL, change feeds and managed Wi-Fi/private certificate policies. Dedicated-device capabilities implemented in current source include persistent HOME launcher selection (`KylokHomeActivity`), boot recovery and crash recovery (`LauncherRecovery`), WorkManager background synchronization (`EnrollmentWorker`), on-device compliance reporting (`PolicyComplianceActivity`), and silent APK installation. Policies are enforced directly at the OS level using standard Android platform APIs. Hosts control identity, authorization, UI, lifecycle and business workflows.
 
-Hosts keep their own users, assets, authorization, workflows and UI. Kylok provides neutral scope/device identifiers and Android management semantics. PostgreSQL and reliable change feeds are available in current source; optional callbacks remain best-effort.
+## Planned work
 
-The 2026-10-27 device run also exposed an uninstall-prevention failure. Remediation and retesting are required before stable qualification; WAN-blocked enrollment, kiosk and permission enforcement remain open. The [repository roadmap](https://github.com/thienvu18/kylok/blob/main/ROADMAP.md) defines exit conditions; the [implementation plan](https://github.com/thienvu18/kylok/blob/main/docs/implementation-plan.md) defines interfaces, sequencing and acceptance tests. The [device checklist](https://github.com/thienvu18/kylok/blob/main/docs/provisioning.md) records the remaining checks.
+Software interfaces and automated test suites for milestones N7 through N12 are implemented in the current source revision. Acceptance requires physical device qualification and release gating across supported firmware.
+
+| Order | Capability | Status |
+| --- | --- | --- |
+| N7 | Persistent HOME launcher, boot recovery and foreground app recovery. | Implemented in source; physical boot/recovery qualification pending. |
+| N8 | Authenticated on-device maintenance and compliance inspection. | Implemented in source; physical offline qualification pending. |
+| N9 | Joined provisioning contract bootstrapping Device Owner enrollment and host association. | Implemented in source; physical single-scan setup qualification pending. |
+| N10 | Kiosk/Lock Task and Wi-Fi restrictions enforced at the OS level. | Implemented in source; physical OEM enforcement qualification pending. |
+| N11 | Sync recovery on network return and safe update deferral. | Implemented in source; physical network-loss qualification pending. |
+| N12 | Transport-neutral local messaging and one-shot device commands. | Commands and contracts in source; physical idle-device evaluation pending. |
+| N13 | Stable device/firmware/network support and release qualification. | Gated by stable readiness checklist. |
+
+A remote message cannot arrive while a device has no route. After reconnection, bounded queued events and durable state reconciliation must recover safely. Background delivery timing depends on Android and OEM behavior.
+
+See the [implementation sequence](https://github.com/thienvu18/kylok/blob/main/docs/implementation-plan.md), [local messaging design](https://github.com/thienvu18/kylok/blob/main/docs/local-messaging.md), and [current compatibility](compatibility.html).

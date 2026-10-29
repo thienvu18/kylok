@@ -44,7 +44,7 @@ def audit(records):
     for folder in ("android/kylok-dpc/src/main", "examples/minimal-dpc/src/main", "examples/configuration-app/src/main"):
         for path in (ROOT / folder).rglob("*.kt"):
             lines = path.read_text().splitlines()
-            internal = bool(re.search(r"^internal (?:object|class|interface|enum|data)", path.read_text(), re.M))
+            internal = bool(re.search(r"^internal (?:open\s+)?(?:object|class|interface|enum|data)", path.read_text(), re.M))
             for index, line in enumerate(lines):
                 if not re.search(r"\bfun\s+(?:\w+\.)?\w+\s*\(", line):
                     continue
